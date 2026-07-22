@@ -504,7 +504,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.1.3</div>
+    <div class="board-version">v3.1.5</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -937,10 +937,32 @@ function refreshAll(){
 
 /* ---------- Converter (multi-currency + calculator) ---------- */
 
-let CONV_CURRENCIES = ["TWD","USD","JPY","ISK","EUR"];
+const CONV_CURRENCIES_KEY = "jaxmoney-conv-currencies";
+let CONV_CURRENCIES = loadConvCurrencies();
 let convRates = null;              // { TWD:1, USD:.., JPY:.., ISK:.., EUR:.. }  (units per 1 TWD)
 let convActive = "TWD";
 let calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"], discountActive:false, discountBase:0, discountDigits:"" };
+
+function loadConvCurrencies(){
+  const defaultSet = ["TWD","USD","JPY","KRW","EUR"];
+  try{
+    const raw = localStorage.getItem(CONV_CURRENCIES_KEY);
+    if(!raw) return defaultSet;
+    const parsed = JSON.parse(raw);
+    if(Array.isArray(parsed) && parsed.length === 5 && parsed.every(c=>typeof c === "string")){
+      return parsed;
+    }
+    return defaultSet;
+  }catch(e){
+    return defaultSet;
+  }
+}
+
+function saveConvCurrencies(){
+  try{
+    localStorage.setItem(CONV_CURRENCIES_KEY, JSON.stringify(CONV_CURRENCIES));
+  }catch(e){ /* storage unavailable, ignore */ }
+}
 
 function renderConvRows(){
   const wrap = document.getElementById("convRows");
@@ -997,6 +1019,7 @@ function renderPickerList(filterText){
         CONV_CURRENCIES[dupIdx] = CONV_CURRENCIES[targetIdx];
       }
       CONV_CURRENCIES[targetIdx] = newCode;
+      saveConvCurrencies();
       convActive = newCode;
       calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"], discountActive:false, discountBase:0, discountDigits:"" };
       closeCurrencyPicker();
