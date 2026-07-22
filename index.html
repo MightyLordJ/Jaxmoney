@@ -265,6 +265,16 @@
 
   /* Converter */
   .conv-rows{ padding:6px; }
+  .offline-badge{
+    margin:6px 6px 0;
+    padding:6px 10px;
+    background: rgba(255,159,10,0.15);
+    color: var(--orange);
+    font-size:11px;
+    font-weight:600;
+    border-radius:8px;
+    text-align:center;
+  }
   .conv-row{
     display:flex;
     align-items:center;
@@ -436,11 +446,12 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.8.2</div>
+    <div class="board-version">v3.9.0</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
     <div class="card">
+      <div class="offline-badge" id="convOfflineBadge" style="display:none;"></div>
       <div class="conv-rows" id="convRows"></div>
       <div class="keypad" id="keypad">
         <button class="key key-fn" data-key="C">C</button>
@@ -547,6 +558,27 @@
 </div>
 
 <script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+
+function cacheSet(key, value){
+  try{ localStorage.setItem(key, JSON.stringify({ value, ts: Date.now() })); }catch(e){}
+}
+function cacheGet(key){
+  try{
+    const raw = localStorage.getItem(key);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){ return null; }
+}
+function formatCacheTime(ts){
+  try{ return new Date(ts).toLocaleString("zh-TW", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }); }
+  catch(e){ return ""; }
+}
+
 const CURRENCIES = [
   ["TWD","新台幣"], ["USD","美元"], ["EUR","歐元"], ["JPY","日圓"],
   ["GBP","英鎊"], ["CNY","人民幣"], ["AUD","澳幣"], ["CAD","加幣"],
@@ -709,6 +741,7 @@ async function loadLatest(){
   const number = document.getElementById("rateNumber");
   label.textContent = `1 ${state.from} =`;
   number.textContent = "— — —";
+  const cacheKey = `jaxmoney-rate-${state.from}-${state.to}`;
   try{
     const res = await fetch(`${API}/rate/${state.from}/${state.to}`);
     const data = await res.json();
@@ -716,9 +749,17 @@ async function loadLatest(){
     const rate = data.rate;
     number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
     document.getElementById("updatedAt").textContent = `更新於 ${data.date}`;
+    cacheSet(cacheKey, { rate, date: data.date });
   }catch(e){
-    number.textContent = "讀取失敗";
-    document.getElementById("updatedAt").textContent = "無法連線 (" + e.message + ")";
+    const cached = cacheGet(cacheKey);
+    if(cached && cached.value){
+      const rate = cached.value.rate;
+      number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
+      document.getElementById("updatedAt").textContent = `⚠️ 離線・上次更新 ${formatCacheTime(cached.ts)}`;
+    }else{
+      number.textContent = "讀取失敗";
+      document.getElementById("updatedAt").textContent = "無法連線 (" + e.message + ")";
+    }
   }
 }
 
@@ -732,6 +773,7 @@ async function loadHistory(){
   const end = new Date();
   const start = new Date();
   start.setDate(start.getDate() - r.days);
+  const cacheKey = `jaxmoney-hist-${state.from}-${state.to}-${state.range}`;
 
   try{
     const res = await fetch(`${API}/rates?base=${state.from}&quotes=${state.to}&from=${fmtDate(start)}&to=${fmtDate(end)}`);
@@ -747,11 +789,20 @@ async function loadHistory(){
       return;
     }
 
+    cacheSet(cacheKey, entries);
     drawChart(entries);
     updateStats(entries);
     updateChange(entries);
   }catch(e){
-    chartBox.innerHTML = `<div class="status-msg">無法載入歷史資料 (${e.message})</div>`;
+    const cached = cacheGet(cacheKey);
+    if(cached && Array.isArray(cached.value) && cached.value.length >= 2){
+      drawChart(cached.value);
+      updateStats(cached.value);
+      updateChange(cached.value);
+      chartBox.insertAdjacentHTML("beforeend", `<div class="status-msg" style="padding:8px 4px 0;">⚠️ 離線，顯示 ${formatCacheTime(cached.ts)} 的資料</div>`);
+    }else{
+      chartBox.innerHTML = `<div class="status-msg">無法載入歷史資料 (${e.message})</div>`;
+    }
   }
 }
 
@@ -924,6 +975,7 @@ function updateConvValues(){
 
 async function loadConverterRates(){
   const quotes = CONV_CURRENCIES.filter(c=>c!=="TWD").join(",");
+  const cacheKey = "jaxmoney-conv-rates";
   try{
     const res = await fetch(`${API}/rates?base=TWD&quotes=${quotes}`);
     const data = await res.json();
@@ -931,10 +983,33 @@ async function loadConverterRates(){
     const rates = { TWD: 1 };
     data.forEach(row => { rates[row.quote] = row.rate; });
     convRates = rates;
+    cacheSet(cacheKey, { rates, currencies: CONV_CURRENCIES.slice() });
+    setConvOfflineBadge(false);
     updateConvValues();
   }catch(e){
-    convRates = null;
+    const cached = cacheGet(cacheKey);
+    const sameSet = cached && cached.value && Array.isArray(cached.value.currencies) &&
+      cached.value.currencies.length === CONV_CURRENCIES.length &&
+      cached.value.currencies.every((c,i)=>c===CONV_CURRENCIES[i]);
+    if(sameSet){
+      convRates = cached.value.rates;
+      setConvOfflineBadge(true, cached.ts);
+    }else{
+      convRates = null;
+      setConvOfflineBadge(false);
+    }
     updateConvValues();
+  }
+}
+
+function setConvOfflineBadge(show, ts){
+  const el = document.getElementById("convOfflineBadge");
+  if(!el) return;
+  if(show){
+    el.textContent = `⚠️ 離線中，顯示 ${formatCacheTime(ts)} 的匯率`;
+    el.style.display = "block";
+  }else{
+    el.style.display = "none";
   }
 }
 
@@ -1170,6 +1245,18 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseup", pressOff);
   btn.addEventListener("mouseleave", pressOff);
 });
+
+function resetScrollPosition(){
+  const board = document.querySelector(".board");
+  if(board) board.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener("pageshow", resetScrollPosition);
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible") resetScrollPosition();
+});
+resetScrollPosition();
 
 populateSelects();
 renderQuickRow();
