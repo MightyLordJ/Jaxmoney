@@ -27,6 +27,8 @@
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
   }
   *{box-sizing:border-box;}
+  html{ touch-action: manipulation; }
+  button, select, .key, .conv-row, .quick-btn, .range-tab, .tab-item{ touch-action: manipulation; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -46,10 +48,10 @@
     padding: calc(20px + env(safe-area-inset-top)) 20px 4px;
   }
   .board-title{
-    font-size:34px;
+    font-size:17px;
     font-weight:700;
-    letter-spacing:-0.5px;
-    color:var(--text-primary);
+    letter-spacing:-0.2px;
+    color:#5E5CE6;
   }
   .updated{
     font-size:13px;
@@ -219,9 +221,7 @@
     display:flex;
     justify-content:center;
     gap:0;
-    background: rgba(28,28,30,0.92);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
+    background: #1C1C1E;
     border-top:1px solid var(--separator);
     padding: 5px 0 calc(5px + env(safe-area-inset-bottom));
     z-index:10;
@@ -284,6 +284,8 @@
     white-space:nowrap;
   }
   .conv-row.active .conv-value{ color:var(--blue); }
+  @keyframes tapFlash{ 0%{ opacity:0.35; } 100%{ opacity:1; } }
+  .conv-value.flash{ animation: tapFlash 0.18s ease-out; }
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
@@ -300,10 +302,15 @@
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-appearance:none;
+    appearance:none;
+    touch-action: manipulation;
   }
   .key:active{ opacity:0.6; }
   .key-fn{ background: var(--gray-fill); color:var(--text-primary); font-weight:600; }
   .key-op{ background: var(--orange); color:#fff; font-weight:600; }
+  .key-op.pending{ background:#fff; color:var(--orange); box-shadow: inset 0 0 0 2px var(--orange); }
   .key-eq{ background: var(--orange); color:#fff; font-weight:600; }
   .key-zero{ grid-column: span 2; text-align:center; }
 </style>
@@ -318,6 +325,7 @@
   <div class="view-panel" id="viewConverter">
     <div class="card">
       <div class="conv-rows" id="convRows"></div>
+      <div id="debugRow" style="padding:4px 14px 8px; font-size:11px; color:#98989D; font-family: monospace;">debug: —</div>
       <div class="keypad" id="keypad">
         <button class="key key-fn" data-key="C">C</button>
         <button class="key key-fn" data-key="back">⌫</button>
@@ -376,7 +384,7 @@
     </div>
   </div>
 
-  <div class="footnote">資料來源：Frankfurter（各國央行牌告匯率，每日更新）</div>
+  <div class="footnote">JaxMoney v1.3</div>
 </div>
 
 <div class="tab-bar">
@@ -666,7 +674,7 @@ function refreshAll(){
 let CONV_CURRENCIES = ["TWD","USD","JPY","ISK","EUR"];
 let convRates = null;              // { TWD:1, USD:.., JPY:.., ISK:.., EUR:.. }  (units per 1 TWD)
 let convActive = "TWD";
-let calc = { display:"0", prevValue:null, operator:null };
+let calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
 
 function renderConvRows(){
   const wrap = document.getElementById("convRows");
@@ -683,7 +691,7 @@ function renderConvRows(){
     row.addEventListener("click", (e)=>{
       if(e.target.closest("select")) return;
       convActive = row.dataset.code;
-      calc = { display:"0", prevValue:null, operator:null };
+      calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
       renderConvRows();
       updateConvValues();
     });
@@ -700,7 +708,7 @@ function renderConvRows(){
       }
       CONV_CURRENCIES[idx] = newCode;
       convActive = newCode;
-      calc = { display:"0", prevValue:null, operator:null };
+      calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
       renderConvRows();
       loadConverterRates();
     });
@@ -754,20 +762,32 @@ async function loadConverterRates(){
 }
 
 function calcInputDigit(d){
+  if(calc.freshOperand){
+    calc.display = (d === ".") ? "0." : d;
+    calc.freshOperand = false;
+    return;
+  }
   if(calc.display === "0" && d !== "."){ calc.display = d; }
   else if(d === "." && calc.display.includes(".")){ /* ignore */ }
   else{ calc.display += d; }
 }
 
+function formatCalcNumber(n){
+  if(!isFinite(n)) return "0";
+  let s = n.toFixed(10).replace(/\.?0+$/, "");
+  return s === "" || s === "-" ? "0" : s;
+}
+
 function calcApplyOperator(op){
   const current = parseFloat(calc.display);
-  if(calc.operator && calc.prevValue !== null){
+  if(calc.operator && !calc.freshOperand){
     calc.prevValue = calcCompute(calc.prevValue, current, calc.operator);
-    calc.display = String(calc.prevValue);
-  }else{
+    calc.display = formatCalcNumber(calc.prevValue);
+  }else if(calc.prevValue === null){
     calc.prevValue = current;
   }
   calc.operator = op;
+  calc.freshOperand = true;
 }
 
 function calcCompute(a, b, op){
@@ -784,39 +804,54 @@ function calcEquals(){
   if(calc.operator === null) return;
   const current = parseFloat(calc.display);
   const result = calcCompute(calc.prevValue, current, calc.operator);
-  calc.display = String(result);
+  calc.display = formatCalcNumber(result);
   calc.operator = null;
   calc.prevValue = null;
+  calc.freshOperand = true;
 }
 
 function calcPercent(){
   const current = parseFloat(calc.display) || 0;
   if(calc.operator && calc.prevValue !== null){
-    calc.display = String(calc.prevValue * (current/100));
+    calc.display = formatCalcNumber(calc.prevValue * (current/100));
   }else{
-    calc.display = String(current/100);
+    calc.display = formatCalcNumber(current/100);
   }
+  calc.freshOperand = true;
 }
 
-document.getElementById("keypad").addEventListener("click", (e)=>{
-  const btn = e.target.closest(".key");
-  if(!btn) return;
-  const k = btn.dataset.key;
-  if(k === "C"){
-    calc = { display:"0", prevValue:null, operator:null };
-  }else if(k === "back"){
-    calc.display = calc.display.length > 1 ? calc.display.slice(0,-1) : "0";
-  }else if(k === "%"){
-    calcPercent();
-  }else if(k === "="){
-    calcEquals();
-  }else if(["+","-","*","/"].includes(k)){
-    calcApplyOperator(k);
-  }else{
-    calcInputDigit(k);
-  }
-  updateConvValues();
+document.querySelectorAll(".key").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const k = btn.dataset.key;
+    try{
+      if(k === "C"){
+        calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
+      }else if(k === "back"){
+        if(calc.freshOperand){ /* nothing typed yet for this operand */ }
+        else{ calc.display = calc.display.length > 1 ? calc.display.slice(0,-1) : "0"; }
+      }else if(k === "%"){
+        calcPercent();
+      }else if(k === "="){
+        calcEquals();
+      }else if(["+","-","*","/"].includes(k)){
+        calcApplyOperator(k);
+      }else{
+        calcInputDigit(k);
+      }
+      updateConvValues();
+      syncOperatorHighlight();
+      document.getElementById("debugRow").textContent = "debug: key=" + k + " " + JSON.stringify(calc);
+    }catch(err){
+      document.getElementById("debugRow").textContent = "ERROR on key=" + k + ": " + err.message;
+    }
+  });
 });
+
+function syncOperatorHighlight(){
+  document.querySelectorAll(".key-op").forEach(btn=>{
+    btn.classList.toggle("pending", calc.operator === btn.dataset.key && calc.freshOperand === true);
+  });
+}
 
 function switchView(viewId){
   document.querySelectorAll(".view-panel").forEach(el=>{
