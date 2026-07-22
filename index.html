@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>JaxMoney</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,6 +27,8 @@
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
   }
   *{box-sizing:border-box;}
+  html{ touch-action: manipulation; }
+  button, select, .key, .conv-row, .quick-btn, .range-tab, .tab-item{ touch-action: manipulation; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -300,6 +302,9 @@
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select:none;
+    user-select:none;
   }
   .key:active{ opacity:0.6; }
   .key-fn{ background: var(--gray-fill); color:var(--text-primary); font-weight:600; }
