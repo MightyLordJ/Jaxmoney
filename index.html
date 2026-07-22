@@ -16,6 +16,8 @@
     --text-secondary: #98989D;
     --separator: #38383A;
     --blue: #0A84FF;
+    --purple: #5E5CE6;
+    --purple-bg: rgba(94,92,230,0.18);
     --blue-bg: rgba(10,132,255,0.16);
     --green: #30D158;
     --green-bg: rgba(48,209,88,0.15);
@@ -278,7 +280,7 @@
     background: var(--gray-fill-alt);
   }
   .conv-row.active{
-    background: var(--blue-bg);
+    background: var(--purple-bg);
   }
   .conv-code-btn{
     flex:0 0 auto;
@@ -313,7 +315,7 @@
     text-overflow:ellipsis;
     white-space:nowrap;
   }
-  .conv-row.active .conv-value{ color:var(--blue); }
+  .conv-row.active .conv-value{ color:#fff; }
   @keyframes tapFlash{ 0%{ opacity:0.35; } 100%{ opacity:1; } }
   .conv-value.flash{ animation: tapFlash 0.18s ease-out; }
   .picker-overlay{
@@ -392,7 +394,7 @@
     appearance:none;
     touch-action: manipulation;
   }
-  .key:active{ opacity:0.6; }
+  .key:active{ filter: brightness(0.7); }
   .key-fn{ background: var(--gray-fill); color:var(--text-primary); font-weight:600; }
   .key-fn.discount-pending{ background:#5E5CE6; color:#fff; }
   .key-op{ background: var(--orange); color:#fff; font-weight:600; }
@@ -434,7 +436,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.4</div>
+    <div class="board-version">v3.6</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
