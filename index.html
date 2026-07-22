@@ -288,7 +288,7 @@
   }
   .tab-icon{ width:20px; height:20px; display:flex; align-items:center; justify-content:center; }
   .tab-icon svg{ width:100%; height:100%; }
-  .tab-item.active{ color:var(--blue); }
+  .tab-item.active{ color:#5E5CE6; }
 
   /* Converter */
   .conv-rows{ padding:6px; }
@@ -492,7 +492,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.9.5</div>
+    <div class="board-version">v3.9.6</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -805,7 +805,7 @@ async function loadLatest(){
       const rate = cached.value.rate;
       number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
       document.getElementById("updatedAt").textContent = `離線・上次更新 ${formatCacheTime(cached.ts)}`;
-      setHeaderOfflineBadge(true);
+      setHeaderOfflineBadge(true, cached.value.date);
     }else{
       number.textContent = "讀取失敗";
       document.getElementById("updatedAt").textContent = "無法連線 (" + e.message + ")";
@@ -850,7 +850,7 @@ async function loadHistory(){
       drawChart(cached.value);
       updateStats(cached.value);
       updateChange(cached.value);
-      setHeaderOfflineBadge(true);
+      setHeaderOfflineBadge(true, cached.value[cached.value.length-1].date);
     }else{
       chartBox.innerHTML = `<div class="status-msg">無法載入歷史資料 (${e.message})</div>`;
     }
@@ -1054,7 +1054,8 @@ async function loadConverterRates(){
     const rates = { TWD: 1 };
     data.forEach(row => { rates[row.quote] = row.rate; });
     convRates = rates;
-    cacheSet(cacheKey, { rates, currencies: CONV_CURRENCIES.slice() });
+    const rateDate = data.length ? data[0].date : null;
+    cacheSet(cacheKey, { rates, currencies: CONV_CURRENCIES.slice(), date: rateDate });
     setHeaderOfflineBadge(false);
     updateConvValues();
   }catch(e){
@@ -1064,7 +1065,7 @@ async function loadConverterRates(){
       cached.value.currencies.every((c,i)=>c===CONV_CURRENCIES[i]);
     if(sameSet){
       convRates = cached.value.rates;
-      setHeaderOfflineBadge(true);
+      setHeaderOfflineBadge(true, cached.value.date);
     }else{
       convRates = null;
     }
@@ -1072,10 +1073,15 @@ async function loadConverterRates(){
   }
 }
 
-function setHeaderOfflineBadge(show){
+function setHeaderOfflineBadge(show, dateStr){
   const el = document.getElementById("headerOfflineBadge");
   if(!el) return;
-  el.style.display = show ? "inline" : "none";
+  if(show){
+    el.textContent = dateStr ? `離線-最後資料(${dateStr})` : "⚠️ 離線";
+    el.style.display = "inline";
+  }else{
+    el.style.display = "none";
+  }
 }
 
 function calcInputDigit(d){
