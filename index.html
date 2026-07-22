@@ -51,7 +51,7 @@
     -webkit-overflow-scrolling:touch;
   }
   .board-header{
-    padding: calc(14px + env(safe-area-inset-top)) 20px 6px;
+    padding: calc(10px + env(safe-area-inset-top)) 20px 4px;
     display:flex;
     align-items:baseline;
     justify-content:space-between;
@@ -261,14 +261,14 @@
   .tab-item.active{ color:var(--blue); }
 
   /* Converter */
-  .conv-rows{ padding:6px; }
+  .conv-rows{ padding:5px; }
   .conv-row{
     display:flex;
     align-items:center;
     gap:10px;
-    padding:6px 10px;
+    padding:5px 10px;
     border-radius:12px;
-    margin-bottom:5px;
+    margin-bottom:4px;
     background: var(--gray-fill);
     cursor:pointer;
   }
@@ -362,16 +362,16 @@
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
-    gap:6px;
-    padding:6px 8px 8px;
+    gap:8px;
+    padding:8px 8px 12px;
   }
   .key{
     font-family: var(--font);
-    font-size:19px;
+    font-size:20px;
     font-weight:500;
     border:none;
     border-radius:12px;
-    padding:12px 0;
+    padding:16px 0;
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
@@ -393,7 +393,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v1.9</div>
+    <div class="board-version">v2.0</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
