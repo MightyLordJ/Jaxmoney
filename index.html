@@ -53,6 +53,24 @@
     min-height:0;
     -webkit-overflow-scrolling:touch;
   }
+  .pull-indicator{
+    height:0;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition: height 0.25s ease;
+  }
+  .pull-indicator.dragging{ transition:none; }
+  .pull-spinner{
+    width:20px;
+    height:20px;
+    border:2px solid var(--separator);
+    border-top-color: var(--blue);
+    border-radius:50%;
+  }
+  .pull-spinner.spinning{ animation: pull-spin 0.7s linear infinite; }
+  @keyframes pull-spin{ to{ transform: rotate(360deg); } }
   .board-header{
     padding: calc(10px + env(safe-area-inset-top)) 20px 4px;
     display:flex;
@@ -444,9 +462,10 @@
 <body>
 
 <div class="board">
+  <div class="pull-indicator" id="pullIndicator"><div class="pull-spinner" id="pullSpinner"></div></div>
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.9.0</div>
+    <div class="board-version">v3.9.1</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -1257,6 +1276,74 @@ document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState === "visible") resetScrollPosition();
 });
 resetScrollPosition();
+
+(function setupPullToRefresh(){
+  const board = document.querySelector(".board");
+  const indicator = document.getElementById("pullIndicator");
+  const spinner = document.getElementById("pullSpinner");
+  if(!board || !indicator || !spinner) return;
+
+  const THRESHOLD = 60;
+  const MAX_PULL = 90;
+  let startY = 0;
+  let pulling = false;
+  let refreshing = false;
+
+  board.addEventListener("touchstart", (e)=>{
+    if(refreshing) return;
+    if(board.scrollTop <= 0){
+      startY = e.touches[0].clientY;
+      pulling = true;
+      indicator.classList.add("dragging");
+    }else{
+      pulling = false;
+    }
+  }, {passive:true});
+
+  board.addEventListener("touchmove", (e)=>{
+    if(!pulling || refreshing) return;
+    const dy = e.touches[0].clientY - startY;
+    if(dy > 0 && board.scrollTop <= 0){
+      const pull = Math.min(dy * 0.5, MAX_PULL);
+      indicator.style.height = pull + "px";
+      spinner.style.transform = `rotate(${pull * 4}deg)`;
+      if(e.cancelable) e.preventDefault();
+    }
+  }, {passive:false});
+
+  function endPull(){
+    if(!pulling || refreshing){ pulling = false; return; }
+    pulling = false;
+    indicator.classList.remove("dragging");
+    const currentHeight = parseFloat(indicator.style.height) || 0;
+    if(currentHeight >= THRESHOLD){
+      refreshing = true;
+      indicator.style.height = "50px";
+      spinner.classList.add("spinning");
+      doRefresh().finally(()=>{
+        setTimeout(()=>{
+          indicator.style.height = "0px";
+          spinner.classList.remove("spinning");
+          refreshing = false;
+        }, 400);
+      });
+    }else{
+      indicator.style.height = "0px";
+    }
+  }
+
+  board.addEventListener("touchend", endPull);
+  board.addEventListener("touchcancel", endPull);
+})();
+
+async function doRefresh(){
+  const converterVisible = document.getElementById("viewConverter").style.display !== "none";
+  if(converterVisible){
+    await loadConverterRates();
+  }else{
+    await Promise.all([loadLatest(), loadHistory()]);
+  }
+}
 
 populateSelects();
 renderQuickRow();
