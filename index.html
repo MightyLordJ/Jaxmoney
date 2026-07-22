@@ -284,7 +284,7 @@
     flex:0 0 auto;
     display:inline-flex;
     align-items:center;
-    gap:6px;
+    gap:9px;
     background: var(--gray-fill-2);
     border:none;
     border-radius:8px;
@@ -297,7 +297,11 @@
     -webkit-tap-highlight-color: transparent;
   }
   .conv-code-btn:active{ opacity:0.7; }
-  .conv-flag-icon{ font-size:22px; }
+  .conv-flag-icon{
+    font-size:19px;
+    display:inline-block;
+    transform: scale(1.4);
+  }
   .conv-value{
     flex:1;
     text-align:right;
@@ -401,7 +405,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v2.6</div>
+    <div class="board-version">v2.8</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
