@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab, .tab-item{ touch-action: manipulation; }
-  html, body{ height:100%; }
+  html, body{ height:100%; height:100dvh; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -40,7 +40,7 @@
     color: var(--text-primary);
     -webkit-font-smoothing:antialiased;
   }
-  html, body{ overscroll-behavior: none; height: 100%; overflow: hidden; }
+  html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
   .canvas-wrap{
     position:fixed;
     top:0; left:0; right:0;
@@ -502,7 +502,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.1.1</div>
+    <div class="board-version">v3.1.2</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -1372,6 +1372,10 @@ function delayedRefreshLayout(){
 
 window.addEventListener("load", setViewportHeight);
 window.addEventListener("resize", refreshLayout);
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", refreshLayout);
+  window.visualViewport.addEventListener("scroll", refreshLayout);
+}
 window.addEventListener("orientationchange", delayedRefreshLayout);
 window.addEventListener("pageshow", delayedRefreshLayout);
 document.addEventListener("visibilitychange", ()=>{
