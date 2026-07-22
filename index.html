@@ -23,6 +23,7 @@
     --red-bg: rgba(255,69,58,0.15);
     --orange: #FF9F0A;
     --gray-fill: #2C2C2E;
+    --gray-fill-alt: #242426;
     --gray-fill-2: #3A3A3C;
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
   }
@@ -273,11 +274,17 @@
     cursor:pointer;
   }
   .conv-row:last-child{ margin-bottom:0; }
+  .conv-row:nth-child(even){
+    background: var(--gray-fill-alt);
+  }
   .conv-row.active{
     background: var(--blue-bg);
   }
   .conv-code-btn{
     flex:0 0 auto;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
     background: var(--gray-fill-2);
     border:none;
     border-radius:8px;
@@ -285,11 +292,12 @@
     font-family: var(--font);
     font-size:14px;
     font-weight:600;
-    padding:7px 10px;
+    padding:5px 10px;
     cursor:pointer;
     -webkit-tap-highlight-color: transparent;
   }
   .conv-code-btn:active{ opacity:0.7; }
+  .conv-flag-icon{ font-size:19px; line-height:1; }
   .conv-value{
     flex:1;
     text-align:right;
@@ -393,7 +401,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v2.3</div>
+    <div class="board-version">v2.4</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -761,7 +769,7 @@ function renderConvRows(){
   const wrap = document.getElementById("convRows");
   wrap.innerHTML = CONV_CURRENCIES.map((code,i) => `
     <div class="conv-row${code===convActive ? " active":""}" data-code="${code}">
-      <button class="conv-code-btn" data-idx="${i}">${FLAGS[code]||"🏳️"} ${code}</button>
+      <button class="conv-code-btn" data-idx="${i}"><span class="conv-flag-icon">${FLAGS[code]||"🏳️"}</span>${code}</button>
       <span class="conv-value" id="convVal-${code}">0</span>
     </div>
   `).join("");
