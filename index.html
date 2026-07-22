@@ -394,10 +394,39 @@
   }
   .key:active{ opacity:0.6; }
   .key-fn{ background: var(--gray-fill); color:var(--text-primary); font-weight:600; }
+  .key-fn.discount-pending{ background:#5E5CE6; color:#fff; }
   .key-op{ background: var(--orange); color:#fff; font-weight:600; }
   .key-op.pending{ background:#fff; color:var(--orange); box-shadow: inset 0 0 0 2px var(--orange); }
   .key-eq{ background: var(--orange); color:#fff; font-weight:600; }
   .key-zero{ grid-column: span 2; text-align:center; }
+  .key-wrap{ position:relative; display:flex; }
+  .key-wrap .key{ width:100%; }
+  .key-hint{
+    display:none;
+    position:absolute;
+    bottom:100%;
+    left:50%;
+    transform:translateX(-50%);
+    margin-bottom:8px;
+    background:#3A3A3C;
+    color:#fff;
+    font-size:11px;
+    font-weight:500;
+    padding:6px 10px;
+    border-radius:8px;
+    white-space:nowrap;
+    z-index:5;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .key-hint::after{
+    content:"";
+    position:absolute;
+    top:100%;
+    left:50%;
+    transform:translateX(-50%);
+    border:5px solid transparent;
+    border-top-color:#3A3A3C;
+  }
 </style>
 </head>
 <body>
@@ -405,7 +434,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.1</div>
+    <div class="board-version">v3.4</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -414,7 +443,10 @@
       <div class="keypad" id="keypad">
         <button class="key key-fn" data-key="C">C</button>
         <button class="key key-fn" data-key="back">⌫</button>
-        <button class="key key-fn" data-key="discount" style="font-size:16px;">%$</button>
+        <div class="key-wrap">
+          <div class="key-hint" id="discountHint">請按兩位數字完成</div>
+          <button class="key key-fn" id="discountBtn" data-key="discount" style="font-size:16px; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;">%$</button>
+        </div>
         <button class="key key-op" data-key="/">÷</button>
         <button class="key" data-key="7">7</button>
         <button class="key" data-key="8">8</button>
@@ -942,6 +974,8 @@ function calcEquals(){
   calc.tokens = [calc.display];
 }
 
+let discountMode = "percentOff"; // "percentOff" (%$: XX% off) or "discount" (折: XX折 = XX%)
+
 function startDiscount(){
   calc.discountActive = true;
   calc.discountBase = parseFloat(calc.display) || 0;
@@ -953,7 +987,9 @@ function discountInputDigit(d){
   calc.discountDigits += d;
   if(calc.discountDigits.length >= 2){
     const pct = parseInt(calc.discountDigits.slice(0,2), 10);
-    const result = calc.discountBase * (pct/100);
+    const result = discountMode === "discount"
+      ? calc.discountBase * (pct/100)        // 折模式：90 -> 9折 -> 90%
+      : calc.discountBase * (1 - pct/100);   // %$模式：20 -> 20% off -> 80%
     calc.display = formatCalcNumber(result);
     calc.tokens = [calc.display];
     finalizeDiscount();
@@ -970,11 +1006,56 @@ function finalizeDiscount(){
   calc.freshOperand = true;
 }
 
+function updateDiscountModeUI(){
+  const btn = document.getElementById("discountBtn");
+  const hint = document.getElementById("discountHint");
+  if(btn) btn.textContent = discountMode === "percentOff" ? "%$" : "折";
+  if(hint){
+    hint.dataset.baseText = discountMode === "percentOff"
+      ? "輸入折扣% (兩位數)"
+      : "請按兩位數字完成";
+  }
+}
+
+let discountLongPressed = false;
+
+(function attachDiscountLongPress(){
+  const btn = document.getElementById("discountBtn");
+  if(!btn) return;
+  let pressTimer = null;
+
+  const start = ()=>{
+    if(pressTimer) return;
+    pressTimer = setTimeout(()=>{
+      discountLongPressed = true;
+      discountMode = discountMode === "percentOff" ? "discount" : "percentOff";
+      updateDiscountModeUI();
+      btn.style.opacity = "0.6";
+      setTimeout(()=>{ btn.style.opacity = ""; }, 150);
+    }, 550);
+  };
+  const cancel = ()=>{
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  };
+
+  btn.addEventListener("touchstart", start, {passive:true});
+  btn.addEventListener("touchend", cancel);
+  btn.addEventListener("touchcancel", cancel);
+  btn.addEventListener("mousedown", start);
+  btn.addEventListener("mouseup", cancel);
+  btn.addEventListener("mouseleave", cancel);
+})();
+
 document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("click", ()=>{
     const k = btn.dataset.key;
 
     if(k === "discount"){
+      if(discountLongPressed){
+        discountLongPressed = false;
+        return;
+      }
       startDiscount();
       updateConvValues();
       syncOperatorHighlight();
@@ -1021,6 +1102,16 @@ function syncOperatorHighlight(){
   document.querySelectorAll(".key-op").forEach(btn=>{
     btn.classList.toggle("pending", calc.operator === btn.dataset.key && calc.freshOperand === true);
   });
+  const awaitingDiscount = calc.discountActive && calc.discountDigits.length < 2;
+  const hint = document.getElementById("discountHint");
+  if(hint){
+    if(hint.dataset.baseText) hint.textContent = hint.dataset.baseText;
+    hint.style.display = awaitingDiscount ? "block" : "none";
+  }
+  const discountBtn = document.getElementById("discountBtn");
+  if(discountBtn){
+    discountBtn.classList.toggle("discount-pending", awaitingDiscount);
+  }
 }
 
 function switchView(viewId){
@@ -1050,6 +1141,7 @@ renderRangeTabs();
 renderConvRows();
 refreshAll();
 loadConverterRates();
+updateDiscountModeUI();
 </script>
 
 </body>
