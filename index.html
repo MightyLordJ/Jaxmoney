@@ -17,7 +17,7 @@
     --separator: #38383A;
     --blue: #0A84FF;
     --purple: #5E5CE6;
-    --purple-bg: rgba(94,92,230,0.18);
+    --purple-bg: rgba(94,92,230,0.32);
     --blue-bg: rgba(10,132,255,0.16);
     --green: #30D158;
     --green-bg: rgba(48,209,88,0.15);
@@ -436,7 +436,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.7</div>
+    <div class="board-version">v3.8</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -678,7 +678,7 @@ function fmtDate(d){
 function decimalsFor(rate){
   if(rate >= 100) return 2;
   if(rate >= 1) return 3;
-  return 5;
+  return 4;
 }
 
 async function loadLatest(){
@@ -934,7 +934,7 @@ function calcInputDigit(d){
 
 function formatCalcNumber(n){
   if(!isFinite(n)) return "0";
-  let s = n.toFixed(10).replace(/\.?0+$/, "");
+  let s = n.toFixed(4).replace(/\.?0+$/, "");
   return s === "" || s === "-" ? "0" : s;
 }
 
