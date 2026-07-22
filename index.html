@@ -671,7 +671,7 @@ function refreshAll(){
 let CONV_CURRENCIES = ["TWD","USD","JPY","ISK","EUR"];
 let convRates = null;              // { TWD:1, USD:.., JPY:.., ISK:.., EUR:.. }  (units per 1 TWD)
 let convActive = "TWD";
-let calc = { display:"0", prevValue:null, operator:null };
+let calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
 
 function renderConvRows(){
   const wrap = document.getElementById("convRows");
@@ -688,7 +688,7 @@ function renderConvRows(){
     row.addEventListener("click", (e)=>{
       if(e.target.closest("select")) return;
       convActive = row.dataset.code;
-      calc = { display:"0", prevValue:null, operator:null };
+      calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
       renderConvRows();
       updateConvValues();
     });
@@ -705,7 +705,7 @@ function renderConvRows(){
       }
       CONV_CURRENCIES[idx] = newCode;
       convActive = newCode;
-      calc = { display:"0", prevValue:null, operator:null };
+      calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
       renderConvRows();
       loadConverterRates();
     });
@@ -759,20 +759,32 @@ async function loadConverterRates(){
 }
 
 function calcInputDigit(d){
+  if(calc.freshOperand){
+    calc.display = (d === ".") ? "0." : d;
+    calc.freshOperand = false;
+    return;
+  }
   if(calc.display === "0" && d !== "."){ calc.display = d; }
   else if(d === "." && calc.display.includes(".")){ /* ignore */ }
   else{ calc.display += d; }
 }
 
+function formatCalcNumber(n){
+  if(!isFinite(n)) return "0";
+  let s = n.toFixed(10).replace(/\.?0+$/, "");
+  return s === "" || s === "-" ? "0" : s;
+}
+
 function calcApplyOperator(op){
   const current = parseFloat(calc.display);
-  if(calc.operator && calc.prevValue !== null){
+  if(calc.operator && !calc.freshOperand){
     calc.prevValue = calcCompute(calc.prevValue, current, calc.operator);
-    calc.display = String(calc.prevValue);
-  }else{
+    calc.display = formatCalcNumber(calc.prevValue);
+  }else if(calc.prevValue === null){
     calc.prevValue = current;
   }
   calc.operator = op;
+  calc.freshOperand = true;
 }
 
 function calcCompute(a, b, op){
@@ -789,18 +801,20 @@ function calcEquals(){
   if(calc.operator === null) return;
   const current = parseFloat(calc.display);
   const result = calcCompute(calc.prevValue, current, calc.operator);
-  calc.display = String(result);
+  calc.display = formatCalcNumber(result);
   calc.operator = null;
   calc.prevValue = null;
+  calc.freshOperand = true;
 }
 
 function calcPercent(){
   const current = parseFloat(calc.display) || 0;
   if(calc.operator && calc.prevValue !== null){
-    calc.display = String(calc.prevValue * (current/100));
+    calc.display = formatCalcNumber(calc.prevValue * (current/100));
   }else{
-    calc.display = String(current/100);
+    calc.display = formatCalcNumber(current/100);
   }
+  calc.freshOperand = true;
 }
 
 document.getElementById("keypad").addEventListener("click", (e)=>{
@@ -808,9 +822,10 @@ document.getElementById("keypad").addEventListener("click", (e)=>{
   if(!btn) return;
   const k = btn.dataset.key;
   if(k === "C"){
-    calc = { display:"0", prevValue:null, operator:null };
+    calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
   }else if(k === "back"){
-    calc.display = calc.display.length > 1 ? calc.display.slice(0,-1) : "0";
+    if(calc.freshOperand){ /* nothing typed yet for this operand */ }
+    else{ calc.display = calc.display.length > 1 ? calc.display.slice(0,-1) : "0"; }
   }else if(k === "%"){
     calcPercent();
   }else if(k === "="){
