@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>換匯</title>
+<title>JaxMoney</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="換匯">
+<meta name="apple-mobile-web-app-title" content="JaxMoney">
 <style>
   :root{
     --page-bg: #0A0E0C;
@@ -16,11 +16,14 @@
     --text-secondary: #98989D;
     --separator: #38383A;
     --blue: #0A84FF;
+    --blue-bg: rgba(10,132,255,0.16);
     --green: #30D158;
     --green-bg: rgba(48,209,88,0.15);
     --red: #FF453A;
     --red-bg: rgba(255,69,58,0.15);
+    --orange: #FF9F0A;
     --gray-fill: #2C2C2E;
+    --gray-fill-2: #3A3A3C;
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
   }
   *{box-sizing:border-box;}
@@ -31,7 +34,7 @@
     color: var(--text-primary);
     display:flex;
     justify-content:center;
-    padding: 0 0 40px;
+    padding: 0 0 calc(84px + env(safe-area-inset-bottom));
     min-height:100vh;
     -webkit-font-smoothing:antialiased;
   }
@@ -40,7 +43,7 @@
     max-width:430px;
   }
   .board-header{
-    padding:20px 20px 4px;
+    padding: calc(20px + env(safe-area-inset-top)) 20px 4px;
   }
   .board-title{
     font-size:34px;
@@ -76,12 +79,6 @@
     padding:14px 8px;
     appearance:none;
     text-align:center;
-  }
-  .pair-divider{
-    width:1px;
-    align-self:stretch;
-    background:var(--separator);
-    margin:10px 0;
   }
   .swap-btn{
     width:34px;height:34px;flex:0 0 34px;
@@ -216,57 +213,225 @@
     text-align:center;
     padding:28px 20px;
   }
+  .tab-bar{
+    position:fixed;
+    bottom:0; left:0; right:0;
+    display:flex;
+    justify-content:center;
+    gap:0;
+    background: rgba(28,28,30,0.92);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-top:1px solid var(--separator);
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    z-index:10;
+  }
+  .tab-item{
+    width:100%;
+    max-width:215px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+    background:transparent;
+    border:none;
+    color:var(--text-secondary);
+    font-family: var(--font);
+    font-size:11px;
+    font-weight:500;
+    padding:4px 0;
+    cursor:pointer;
+  }
+  .tab-icon{ width:24px; height:24px; display:flex; align-items:center; justify-content:center; }
+  .tab-icon svg{ width:100%; height:100%; }
+  .tab-item.active{ color:var(--blue); }
+
+  /* Converter */
+  .conv-rows{ padding:8px; }
+  .conv-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 10px;
+    border-radius:12px;
+    margin-bottom:6px;
+    background: var(--gray-fill);
+    cursor:pointer;
+  }
+  .conv-row:last-child{ margin-bottom:0; }
+  .conv-row.active{
+    background: var(--blue-bg);
+  }
+  .conv-code-select{
+    flex:0 0 92px;
+    background:transparent;
+    border:none;
+    color:var(--text-primary);
+    font-family: var(--font);
+    font-size:15px;
+    font-weight:600;
+    padding:6px 2px;
+  }
+  .conv-value{
+    flex:1;
+    text-align:right;
+    font-size:20px;
+    font-weight:600;
+    font-variant-numeric: tabular-nums;
+    color:var(--text-primary);
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .conv-row.active .conv-value{ color:var(--blue); }
+  .keypad{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:8px;
+    padding:8px 8px 12px;
+  }
+  .key{
+    font-family: var(--font);
+    font-size:20px;
+    font-weight:500;
+    border:none;
+    border-radius:12px;
+    padding:16px 0;
+    background: var(--gray-fill-2);
+    color:var(--text-primary);
+    cursor:pointer;
+  }
+  .key:active{ opacity:0.6; }
+  .key-fn{ background: var(--gray-fill); color:var(--text-primary); font-weight:600; }
+  .key-op{ background: var(--orange); color:#fff; font-weight:600; }
+  .key-eq{ background: var(--orange); color:#fff; font-weight:600; }
+  .key-zero{ grid-column: span 2; text-align:center; }
 </style>
 </head>
 <body>
 
 <div class="board">
   <div class="board-header">
-    <div class="board-title">換匯</div>
-  </div>
-  <div class="updated" id="updatedAt">載入中...</div>
-
-  <div class="card">
-    <div class="pair-row">
-      <select id="fromSelect"></select>
-      <button class="swap-btn" id="swapBtn" title="交換幣別">⇄</button>
-      <select id="toSelect"></select>
-      <button class="swap-btn" id="addCurrentBtn" title="加入快捷">＋</button>
-    </div>
-    <div class="quick-row" id="quickRow"></div>
+    <div class="board-title">JaxMoney</div>
   </div>
 
-  <div class="card">
-    <div class="rate-display">
-      <div class="rate-label" id="rateLabel">1 TWD =</div>
-      <div class="rate-number" id="rateNumber">— — —</div>
-      <div class="rate-change flat" id="rateChange">—</div>
+  <div class="view-panel" id="viewConverter">
+    <div class="card">
+      <div class="conv-rows" id="convRows"></div>
+      <div class="keypad" id="keypad">
+        <button class="key key-fn" data-key="C">C</button>
+        <button class="key key-fn" data-key="back">⌫</button>
+        <button class="key key-fn" data-key="%">%</button>
+        <button class="key key-op" data-key="/">÷</button>
+        <button class="key" data-key="7">7</button>
+        <button class="key" data-key="8">8</button>
+        <button class="key" data-key="9">9</button>
+        <button class="key key-op" data-key="*">×</button>
+        <button class="key" data-key="4">4</button>
+        <button class="key" data-key="5">5</button>
+        <button class="key" data-key="6">6</button>
+        <button class="key key-op" data-key="-">−</button>
+        <button class="key" data-key="1">1</button>
+        <button class="key" data-key="2">2</button>
+        <button class="key" data-key="3">3</button>
+        <button class="key key-op" data-key="+">+</button>
+        <button class="key key-zero" data-key="0">0</button>
+        <button class="key" data-key=".">.</button>
+        <button class="key key-eq" data-key="=">=</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="view-panel" id="viewHistory" style="display:none;">
+    <div class="updated" id="updatedAt">載入中...</div>
+
+    <div class="card">
+      <div class="pair-row">
+        <select id="fromSelect"></select>
+        <button class="swap-btn" id="swapBtn" title="交換幣別">⇄</button>
+        <select id="toSelect"></select>
+        <button class="swap-btn" id="addCurrentBtn" title="加入快捷">＋</button>
+      </div>
+      <div class="quick-row" id="quickRow"></div>
     </div>
 
-    <div class="range-tabs" id="rangeTabs"></div>
+    <div class="card">
+      <div class="rate-display">
+        <div class="rate-label" id="rateLabel">1 TWD =</div>
+        <div class="rate-number" id="rateNumber">— — —</div>
+        <div class="rate-change flat" id="rateChange">—</div>
+      </div>
 
-    <div class="chart-box" id="chartBox">
-      <div class="status-msg" id="chartStatus">載入歷史資料中...</div>
-    </div>
+      <div class="range-tabs" id="rangeTabs"></div>
 
-    <div class="stats-row" id="statsRow" style="display:none;">
-      <div class="stat"><div class="stat-label">最高</div><div class="stat-value" id="statHigh">—</div></div>
-      <div class="stat"><div class="stat-label">最低</div><div class="stat-value" id="statLow">—</div></div>
-      <div class="stat"><div class="stat-label">平均</div><div class="stat-value" id="statAvg">—</div></div>
+      <div class="chart-box" id="chartBox">
+        <div class="status-msg" id="chartStatus">載入歷史資料中...</div>
+      </div>
+
+      <div class="stats-row" id="statsRow" style="display:none;">
+        <div class="stat"><div class="stat-label">最高</div><div class="stat-value" id="statHigh">—</div></div>
+        <div class="stat"><div class="stat-label">最低</div><div class="stat-value" id="statLow">—</div></div>
+        <div class="stat"><div class="stat-label">平均</div><div class="stat-value" id="statAvg">—</div></div>
+      </div>
     </div>
   </div>
 
   <div class="footnote">資料來源：Frankfurter（各國央行牌告匯率，每日更新）</div>
 </div>
 
+<div class="tab-bar">
+  <button class="tab-item active" id="tabConverter" data-view="viewConverter">
+    <span class="tab-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4.5" y="2.5" width="15" height="19" rx="2.8"/>
+        <line x1="7.2" y1="6.3" x2="16.8" y2="6.3"/>
+        <circle cx="7.6" cy="11" r="0.9"/>
+        <circle cx="12" cy="11" r="0.9"/>
+        <circle cx="16.4" cy="11" r="0.9"/>
+        <circle cx="7.6" cy="14.8" r="0.9"/>
+        <circle cx="12" cy="14.8" r="0.9"/>
+        <circle cx="16.4" cy="14.8" r="0.9"/>
+        <circle cx="7.6" cy="18.6" r="0.9"/>
+        <circle cx="12" cy="18.6" r="0.9"/>
+        <circle cx="16.4" cy="18.6" r="0.9"/>
+      </svg>
+    </span>
+    <span>換匯計算機</span>
+  </button>
+  <button class="tab-item" id="tabHistory" data-view="viewHistory">
+    <span class="tab-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5 20.5 V3.5"/>
+        <path d="M3.5 20.5 H20.5"/>
+        <path d="M6.2 15.8 L10.3 10.6 L13.5 13.4 L18.6 6.6"/>
+        <path d="M14.3 6.6 H18.6 V11"/>
+      </svg>
+    </span>
+    <span>歷史匯率</span>
+  </button>
+</div>
+
 <script>
 const CURRENCIES = [
-  ["TWD","新台幣"], ["USD","美元"], ["JPY","日圓"], ["EUR","歐元"],
-  ["GBP","英鎊"], ["HKD","港幣"], ["CNY","人民幣"], ["KRW","韓元"],
-  ["THB","泰銖"], ["ISK","冰島克朗"], ["AUD","澳幣"], ["CAD","加幣"],
-  ["SGD","新加坡幣"], ["MYR","馬來幣"], ["VND","越南盾"], ["PHP","菲律賓披索"],
-  ["IDR","印尼盾"], ["NZD","紐西蘭幣"], ["CHF","瑞士法郎"]
+  ["TWD","新台幣"], ["USD","美元"], ["EUR","歐元"], ["JPY","日圓"],
+  ["GBP","英鎊"], ["CNY","人民幣"], ["AUD","澳幣"], ["CAD","加幣"],
+  ["CHF","瑞士法郎"], ["HKD","港幣"], ["SGD","新加坡幣"], ["SEK","瑞典克朗"],
+  ["KRW","韓元"], ["NOK","挪威克朗"], ["NZD","紐西蘭幣"], ["INR","印度盧比"],
+  ["MXN","墨西哥披索"], ["ZAR","南非蘭特"], ["BRL","巴西雷亞爾"], ["DKK","丹麥克朗"],
+  ["PLN","波蘭茲羅提"], ["THB","泰銖"], ["IDR","印尼盾"], ["HUF","匈牙利福林"],
+  ["CZK","捷克克朗"], ["ILS","以色列新謝克爾"], ["PHP","菲律賓披索"], ["AED","阿聯酋迪爾汗"],
+  ["SAR","沙烏地里亞爾"], ["MYR","馬來幣"], ["TRY","土耳其里拉"], ["RUB","俄羅斯盧布"],
+  ["VND","越南盾"], ["ISK","冰島克朗"]
 ];
+
+const FLAGS = {
+  TWD:"🇹🇼", USD:"🇺🇸", EUR:"🇪🇺", JPY:"🇯🇵", GBP:"🇬🇧", CNY:"🇨🇳",
+  AUD:"🇦🇺", CAD:"🇨🇦", CHF:"🇨🇭", HKD:"🇭🇰", SGD:"🇸🇬", SEK:"🇸🇪",
+  KRW:"🇰🇷", NOK:"🇳🇴", NZD:"🇳🇿", INR:"🇮🇳", MXN:"🇲🇽", ZAR:"🇿🇦",
+  BRL:"🇧🇷", DKK:"🇩🇰", PLN:"🇵🇱", THB:"🇹🇭", IDR:"🇮🇩", HUF:"🇭🇺",
+  CZK:"🇨🇿", ILS:"🇮🇱", PHP:"🇵🇭", AED:"🇦🇪", SAR:"🇸🇦", MYR:"🇲🇾",
+  TRY:"🇹🇷", RUB:"🇷🇺", VND:"🇻🇳", ISK:"🇮🇸"
+};
 
 const RANGES = [
   {key:"1M", days:30}, {key:"6M", days:182}, {key:"1Y", days:365}, {key:"3Y", days:1095}
@@ -496,10 +661,185 @@ function refreshAll(){
   loadHistory();
 }
 
+/* ---------- Converter (multi-currency + calculator) ---------- */
+
+let CONV_CURRENCIES = ["TWD","USD","JPY","ISK","EUR"];
+let convRates = null;              // { TWD:1, USD:.., JPY:.., ISK:.., EUR:.. }  (units per 1 TWD)
+let convActive = "TWD";
+let calc = { display:"0", prevValue:null, operator:null };
+
+function renderConvRows(){
+  const wrap = document.getElementById("convRows");
+  wrap.innerHTML = CONV_CURRENCIES.map((code,i) => `
+    <div class="conv-row${code===convActive ? " active":""}" data-code="${code}">
+      <select class="conv-code-select" data-idx="${i}">
+        ${CURRENCIES.map(([c,n])=>`<option value="${c}" ${c===code?"selected":""}>${FLAGS[c]||"🏳️"} ${c}</option>`).join("")}
+      </select>
+      <span class="conv-value" id="convVal-${code}">0</span>
+    </div>
+  `).join("");
+
+  wrap.querySelectorAll(".conv-row").forEach(row=>{
+    row.addEventListener("click", (e)=>{
+      if(e.target.closest("select")) return;
+      convActive = row.dataset.code;
+      calc = { display:"0", prevValue:null, operator:null };
+      renderConvRows();
+      updateConvValues();
+    });
+  });
+
+  wrap.querySelectorAll(".conv-code-select").forEach(sel=>{
+    sel.addEventListener("click", e => e.stopPropagation());
+    sel.addEventListener("change", ()=>{
+      const idx = +sel.dataset.idx;
+      const newCode = sel.value;
+      const dupIdx = CONV_CURRENCIES.findIndex((c,i)=>c===newCode && i!==idx);
+      if(dupIdx !== -1){
+        CONV_CURRENCIES[dupIdx] = CONV_CURRENCIES[idx];
+      }
+      CONV_CURRENCIES[idx] = newCode;
+      convActive = newCode;
+      calc = { display:"0", prevValue:null, operator:null };
+      renderConvRows();
+      loadConverterRates();
+    });
+  });
+}
+
+function formatMoney(n){
+  if(!isFinite(n)) return "0";
+  const abs = Math.abs(n);
+  let digits = 0;
+  if(abs < 1) digits = 4;
+  else if(abs < 100) digits = 2;
+  else digits = 0;
+  return n.toLocaleString("en-US", { minimumFractionDigits:0, maximumFractionDigits: digits });
+}
+
+function convertAmount(amount, fromCode, toCode){
+  if(!convRates) return null;
+  const twd = fromCode === "TWD" ? amount : amount / convRates[fromCode];
+  return toCode === "TWD" ? twd : twd * convRates[toCode];
+}
+
+function updateConvValues(){
+  const activeAmount = parseFloat(calc.display) || 0;
+  CONV_CURRENCIES.forEach(code=>{
+    const el = document.getElementById("convVal-" + code);
+    if(!el) return;
+    if(code === convActive){
+      el.textContent = calc.display;
+    }else{
+      const result = convertAmount(activeAmount, convActive, code);
+      el.textContent = result == null ? "—" : formatMoney(result);
+    }
+  });
+}
+
+async function loadConverterRates(){
+  const quotes = CONV_CURRENCIES.filter(c=>c!=="TWD").join(",");
+  try{
+    const res = await fetch(`${API}/rates?base=TWD&quotes=${quotes}`);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+    const rates = { TWD: 1 };
+    data.forEach(row => { rates[row.quote] = row.rate; });
+    convRates = rates;
+    updateConvValues();
+  }catch(e){
+    convRates = null;
+    updateConvValues();
+  }
+}
+
+function calcInputDigit(d){
+  if(calc.display === "0" && d !== "."){ calc.display = d; }
+  else if(d === "." && calc.display.includes(".")){ /* ignore */ }
+  else{ calc.display += d; }
+}
+
+function calcApplyOperator(op){
+  const current = parseFloat(calc.display);
+  if(calc.operator && calc.prevValue !== null){
+    calc.prevValue = calcCompute(calc.prevValue, current, calc.operator);
+    calc.display = String(calc.prevValue);
+  }else{
+    calc.prevValue = current;
+  }
+  calc.operator = op;
+}
+
+function calcCompute(a, b, op){
+  switch(op){
+    case "+": return a + b;
+    case "-": return a - b;
+    case "*": return a * b;
+    case "/": return b === 0 ? 0 : a / b;
+    default: return b;
+  }
+}
+
+function calcEquals(){
+  if(calc.operator === null) return;
+  const current = parseFloat(calc.display);
+  const result = calcCompute(calc.prevValue, current, calc.operator);
+  calc.display = String(result);
+  calc.operator = null;
+  calc.prevValue = null;
+}
+
+function calcPercent(){
+  const current = parseFloat(calc.display) || 0;
+  if(calc.operator && calc.prevValue !== null){
+    calc.display = String(calc.prevValue * (current/100));
+  }else{
+    calc.display = String(current/100);
+  }
+}
+
+document.getElementById("keypad").addEventListener("click", (e)=>{
+  const btn = e.target.closest(".key");
+  if(!btn) return;
+  const k = btn.dataset.key;
+  if(k === "C"){
+    calc = { display:"0", prevValue:null, operator:null };
+  }else if(k === "back"){
+    calc.display = calc.display.length > 1 ? calc.display.slice(0,-1) : "0";
+  }else if(k === "%"){
+    calcPercent();
+  }else if(k === "="){
+    calcEquals();
+  }else if(["+","-","*","/"].includes(k)){
+    calcApplyOperator(k);
+  }else{
+    calcInputDigit(k);
+  }
+  updateConvValues();
+});
+
+function switchView(viewId){
+  document.querySelectorAll(".view-panel").forEach(el=>{
+    el.style.display = (el.id === viewId) ? "block" : "none";
+  });
+  document.querySelectorAll(".tab-item").forEach(btn=>{
+    btn.classList.toggle("active", btn.dataset.view === viewId);
+  });
+  if(viewId === "viewConverter" && convRates === null){
+    loadConverterRates();
+  }
+}
+
+document.querySelectorAll(".tab-item").forEach(btn=>{
+  btn.addEventListener("click", ()=> switchView(btn.dataset.view));
+});
+
 populateSelects();
 renderQuickRow();
 renderRangeTabs();
+renderConvRows();
 refreshAll();
+loadConverterRates();
 </script>
 
 </body>
