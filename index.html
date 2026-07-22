@@ -51,13 +51,21 @@
     -webkit-overflow-scrolling:touch;
   }
   .board-header{
-    padding: calc(20px + env(safe-area-inset-top)) 20px 4px;
+    padding: calc(14px + env(safe-area-inset-top)) 20px 6px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
   }
   .board-title{
     font-size:17px;
     font-weight:700;
     letter-spacing:-0.2px;
     color:#5E5CE6;
+  }
+  .board-version{
+    font-size:11px;
+    font-weight:500;
+    color:var(--text-secondary);
   }
   .updated{
     font-size:13px;
@@ -253,14 +261,14 @@
   .tab-item.active{ color:var(--blue); }
 
   /* Converter */
-  .conv-rows{ padding:8px; }
+  .conv-rows{ padding:6px; }
   .conv-row{
     display:flex;
     align-items:center;
     gap:10px;
-    padding:8px 10px;
+    padding:6px 10px;
     border-radius:12px;
-    margin-bottom:6px;
+    margin-bottom:5px;
     background: var(--gray-fill);
     cursor:pointer;
   }
@@ -277,7 +285,7 @@
     font-family: var(--font);
     font-size:14px;
     font-weight:600;
-    padding:7px 10px;
+    padding:6px 10px;
     cursor:pointer;
     -webkit-tap-highlight-color: transparent;
   }
@@ -354,16 +362,16 @@
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
-    gap:8px;
-    padding:8px 8px 12px;
+    gap:6px;
+    padding:6px 8px 8px;
   }
   .key{
     font-family: var(--font);
-    font-size:20px;
+    font-size:19px;
     font-weight:500;
     border:none;
     border-radius:12px;
-    padding:16px 0;
+    padding:12px 0;
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
@@ -385,6 +393,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
+    <div class="board-version">v1.9</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -447,8 +456,6 @@
       </div>
     </div>
   </div>
-
-  <div class="footnote">JaxMoney v1.8</div>
 </div>
 
 <div class="picker-overlay" id="pickerOverlay" style="display:none;">
