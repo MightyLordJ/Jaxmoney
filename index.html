@@ -29,20 +29,26 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab, .tab-item{ touch-action: manipulation; }
+  html, body{ height:100%; }
   body{
     margin:0;
     background: var(--page-bg);
     font-family: var(--font);
     color: var(--text-primary);
     display:flex;
-    justify-content:center;
-    padding: 0 0 calc(62px + env(safe-area-inset-bottom));
+    flex-direction:column;
+    align-items:center;
     min-height:100vh;
+    min-height:100dvh;
     -webkit-font-smoothing:antialiased;
   }
   .board{
     width:100%;
     max-width:430px;
+    flex:1 1 auto;
+    overflow-y:auto;
+    min-height:0;
+    -webkit-overflow-scrolling:touch;
   }
   .board-header{
     padding: calc(20px + env(safe-area-inset-top)) 20px 4px;
@@ -216,15 +222,15 @@
     padding:28px 20px;
   }
   .tab-bar{
-    position:fixed;
-    bottom:0; left:0; right:0;
+    width:100%;
+    max-width:430px;
+    flex:0 0 auto;
     display:flex;
     justify-content:center;
     gap:0;
     background: #1C1C1E;
     border-top:1px solid var(--separator);
     padding: 5px 0 calc(5px + env(safe-area-inset-bottom));
-    z-index:10;
   }
   .tab-item{
     width:100%;
@@ -262,16 +268,20 @@
   .conv-row.active{
     background: var(--blue-bg);
   }
-  .conv-code-select{
-    flex:0 0 92px;
-    background:transparent;
+  .conv-code-btn{
+    flex:0 0 auto;
+    background: var(--gray-fill-2);
     border:none;
+    border-radius:8px;
     color:var(--text-primary);
     font-family: var(--font);
-    font-size:15px;
+    font-size:14px;
     font-weight:600;
-    padding:6px 2px;
+    padding:7px 10px;
+    cursor:pointer;
+    -webkit-tap-highlight-color: transparent;
   }
+  .conv-code-btn:active{ opacity:0.7; }
   .conv-value{
     flex:1;
     text-align:right;
@@ -286,6 +296,61 @@
   .conv-row.active .conv-value{ color:var(--blue); }
   @keyframes tapFlash{ 0%{ opacity:0.35; } 100%{ opacity:1; } }
   .conv-value.flash{ animation: tapFlash 0.18s ease-out; }
+  .picker-overlay{
+    position:fixed; inset:0;
+    background: rgba(0,0,0,0.5);
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    z-index:50;
+  }
+  .picker-sheet{
+    width:100%;
+    max-width:430px;
+    background: var(--card-bg);
+    border-radius:18px 18px 0 0;
+    max-height:70vh;
+    display:flex;
+    flex-direction:column;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .picker-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 16px;
+    border-bottom:1px solid var(--separator);
+    font-weight:600;
+    font-size:15px;
+    color:var(--text-primary);
+    flex:0 0 auto;
+  }
+  .picker-close{
+    background:transparent;
+    border:none;
+    color:var(--blue);
+    font-family: var(--font);
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .picker-list{
+    overflow-y:auto;
+    padding:8px;
+  }
+  .picker-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 10px;
+    border-radius:10px;
+    cursor:pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .picker-item:active{ background: var(--gray-fill); }
+  .picker-flag{ font-size:20px; width:26px; text-align:center; flex:0 0 auto; }
+  .picker-code{ font-size:15px; font-weight:600; color:var(--text-primary); width:46px; flex:0 0 auto; }
+  .picker-name{ font-size:13px; color:var(--text-secondary); }
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
@@ -383,7 +448,17 @@
     </div>
   </div>
 
-  <div class="footnote">JaxMoney v1.5</div>
+  <div class="footnote">JaxMoney v1.8</div>
+</div>
+
+<div class="picker-overlay" id="pickerOverlay" style="display:none;">
+  <div class="picker-sheet">
+    <div class="picker-header">
+      <span>選擇幣別</span>
+      <button class="picker-close" id="pickerClose">完成</button>
+    </div>
+    <div class="picker-list" id="pickerList"></div>
+  </div>
 </div>
 
 <div class="tab-bar">
@@ -679,16 +754,14 @@ function renderConvRows(){
   const wrap = document.getElementById("convRows");
   wrap.innerHTML = CONV_CURRENCIES.map((code,i) => `
     <div class="conv-row${code===convActive ? " active":""}" data-code="${code}">
-      <select class="conv-code-select" data-idx="${i}">
-        ${CURRENCIES.map(([c,n])=>`<option value="${c}" ${c===code?"selected":""}>${FLAGS[c]||"🏳️"} ${c}</option>`).join("")}
-      </select>
+      <button class="conv-code-btn" data-idx="${i}">${FLAGS[code]||"🏳️"} ${code}</button>
       <span class="conv-value" id="convVal-${code}">0</span>
     </div>
   `).join("");
 
   wrap.querySelectorAll(".conv-row").forEach(row=>{
     row.addEventListener("click", (e)=>{
-      if(e.target.closest("select")) return;
+      if(e.target.closest(".conv-code-btn")) return;
       convActive = row.dataset.code;
       calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"] };
       renderConvRows();
@@ -696,22 +769,48 @@ function renderConvRows(){
     });
   });
 
-  wrap.querySelectorAll(".conv-code-select").forEach(sel=>{
-    sel.addEventListener("click", e => e.stopPropagation());
-    sel.addEventListener("change", ()=>{
-      const idx = +sel.dataset.idx;
-      const newCode = sel.value;
-      const dupIdx = CONV_CURRENCIES.findIndex((c,i)=>c===newCode && i!==idx);
+  wrap.querySelectorAll(".conv-code-btn").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      openCurrencyPicker(+btn.dataset.idx);
+    });
+  });
+}
+
+let pickerTargetIdx = null;
+
+function openCurrencyPicker(idx){
+  pickerTargetIdx = idx;
+  const list = document.getElementById("pickerList");
+  list.innerHTML = CURRENCIES.map(([c,n])=>`
+    <div class="picker-item" data-code="${c}">
+      <span class="picker-flag">${FLAGS[c]||"🏳️"}</span>
+      <span class="picker-code">${c}</span>
+      <span class="picker-name">${n}</span>
+    </div>
+  `).join("");
+  list.querySelectorAll(".picker-item").forEach(item=>{
+    item.addEventListener("click", ()=>{
+      const newCode = item.dataset.code;
+      const targetIdx = pickerTargetIdx;
+      const dupIdx = CONV_CURRENCIES.findIndex((c,i)=>c===newCode && i!==targetIdx);
       if(dupIdx !== -1){
-        CONV_CURRENCIES[dupIdx] = CONV_CURRENCIES[idx];
+        CONV_CURRENCIES[dupIdx] = CONV_CURRENCIES[targetIdx];
       }
-      CONV_CURRENCIES[idx] = newCode;
+      CONV_CURRENCIES[targetIdx] = newCode;
       convActive = newCode;
       calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"] };
+      closeCurrencyPicker();
       renderConvRows();
       loadConverterRates();
     });
   });
+  document.getElementById("pickerOverlay").style.display = "flex";
+}
+
+function closeCurrencyPicker(){
+  document.getElementById("pickerOverlay").style.display = "none";
+  pickerTargetIdx = null;
 }
 
 function formatMoney(n){
@@ -873,6 +972,11 @@ function switchView(viewId){
 
 document.querySelectorAll(".tab-item").forEach(btn=>{
   btn.addEventListener("click", ()=> switchView(btn.dataset.view));
+});
+
+document.getElementById("pickerClose").addEventListener("click", closeCurrencyPicker);
+document.getElementById("pickerOverlay").addEventListener("click", (e)=>{
+  if(e.target.id === "pickerOverlay") closeCurrencyPicker();
 });
 
 populateSelects();
