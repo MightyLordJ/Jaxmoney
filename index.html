@@ -56,6 +56,9 @@
     -webkit-overflow-scrolling:touch;
     overscroll-behavior: none;
   }
+  .board-inner{
+    transform-origin: top left;
+  }
   .board-header{
     padding: calc(10px + env(safe-area-inset-top)) 20px 4px;
     display:flex;
@@ -291,14 +294,14 @@
   .tab-item.active{ color:#5E5CE6; }
 
   /* Converter */
-  .conv-rows{ padding:4px; }
+  .conv-rows{ padding:6px; }
   .conv-row{
     display:flex;
     align-items:center;
     gap:10px;
-    padding:6px 10px;
+    padding:7px 10px;
     border-radius:12px;
-    margin-bottom:5px;
+    margin-bottom:6px;
     background: var(--gray-fill);
     cursor:pointer;
   }
@@ -422,8 +425,8 @@
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
-    gap:7px;
-    padding:5px 8px 8px;
+    gap:8px;
+    padding:6px 8px 10px;
   }
   .key{
     font-family: var(--font);
@@ -431,7 +434,7 @@
     font-weight:500;
     border:none;
     border-radius:13px;
-    padding:15px 0;
+    padding:16px 0;
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
@@ -480,6 +483,7 @@
 <body>
 
 <div class="board">
+<div class="board-inner" id="boardInner">
   <div class="board-header">
     <div class="board-title-group">
       <div class="board-title">JaxMoney</div>
@@ -493,7 +497,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.9.8</div>
+    <div class="board-version">v3.0.0</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -559,6 +563,7 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 
 <div class="picker-overlay" id="pickerOverlay" style="display:none;">
@@ -1296,6 +1301,7 @@ function switchView(viewId){
   if(viewId === "viewConverter" && convRates === null){
     loadConverterRates();
   }
+  requestAnimationFrame(fitBoardToScreen);
 }
 
 document.querySelectorAll(".tab-item").forEach(btn=>{
@@ -1329,9 +1335,25 @@ function resetScrollPosition(){
   window.scrollTo(0, 0);
 }
 
+function fitBoardToScreen(){
+  const board = document.querySelector(".board");
+  const inner = document.getElementById("boardInner");
+  if(!board || !inner) return;
+  inner.style.width = "";
+  inner.style.transform = "none";
+  const availableHeight = board.clientHeight;
+  const contentHeight = inner.scrollHeight;
+  if(contentHeight > availableHeight && availableHeight > 0){
+    const scale = availableHeight / contentHeight;
+    inner.style.width = (100 / scale) + "%";
+    inner.style.transform = `scale(${scale})`;
+  }
+}
+
 function refreshLayout(){
   setViewportHeight();
   resetScrollPosition();
+  requestAnimationFrame(fitBoardToScreen);
 }
 
 window.addEventListener("load", setViewportHeight);
