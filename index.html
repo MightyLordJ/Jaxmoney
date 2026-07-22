@@ -38,19 +38,23 @@
     background: var(--page-bg);
     font-family: var(--font);
     color: var(--text-primary);
-    display:flex;
-    align-items:center;
-    justify-content:center;
     -webkit-font-smoothing:antialiased;
   }
   html, body{ overscroll-behavior: none; height: 100%; overflow: hidden; }
+  .canvas-wrap{
+    position:fixed;
+    top:0; left:0; right:0;
+    bottom: var(--tabbar-height, 0px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
   .app-canvas{
     width:430px;
     display:flex;
     flex-direction:column;
     background: var(--page-bg);
     transform-origin: center center;
-    flex:0 0 auto;
   }
   .board{
     width:100%;
@@ -260,14 +264,18 @@
     padding:28px 20px;
   }
   .tab-bar{
+    position:fixed;
+    bottom:0; left:0; right:0;
     width:100%;
-    flex:0 0 auto;
+    max-width:430px;
+    margin:0 auto;
     display:flex;
     justify-content:center;
     gap:0;
     background: #1C1C1E;
     border-top:1px solid var(--separator);
     padding: 5px 0 calc(5px + env(safe-area-inset-bottom));
+    z-index:10;
   }
   .tab-item{
     width:100%;
@@ -478,6 +486,7 @@
 </head>
 <body>
 
+<div class="canvas-wrap">
 <div class="app-canvas" id="appCanvas">
 <div class="board">
   <div class="board-header">
@@ -493,7 +502,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.1.0</div>
+    <div class="board-version">v3.1.1</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -560,6 +569,8 @@
     </div>
   </div>
 </div>
+</div>
+</div>
 
 <div class="tab-bar">
   <button class="tab-item active" id="tabConverter" data-view="viewConverter">
@@ -591,7 +602,6 @@
     </span>
     <span>歷史匯率</span>
   </button>
-</div>
 </div>
 
 <div class="picker-overlay" id="pickerOverlay" style="display:none;">
@@ -1323,6 +1333,10 @@ document.querySelectorAll(".key").forEach(btn=>{
 function setViewportHeight(){
   const vh = window.innerHeight * 0.01;
   document.documentElement.style.setProperty("--vh", vh + "px");
+  const tabBar = document.querySelector(".tab-bar");
+  if(tabBar){
+    document.documentElement.style.setProperty("--tabbar-height", tabBar.offsetHeight + "px");
+  }
 }
 
 function resetScrollPosition(){
@@ -1330,14 +1344,15 @@ function resetScrollPosition(){
 }
 
 function fitAppCanvas(){
+  const wrap = document.querySelector(".canvas-wrap");
   const canvas = document.getElementById("appCanvas");
-  if(!canvas) return;
+  if(!wrap || !canvas) return;
   canvas.style.transform = "none";
   const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
-  const naturalHeight = canvas.scrollHeight; // natural height of header + active view + tab-bar
+  const naturalHeight = canvas.scrollHeight; // natural height of header + active view (tab-bar excluded)
   if(!designWidth || !naturalHeight) return;
-  const scaleW = window.innerWidth / designWidth;
-  const scaleH = window.innerHeight / naturalHeight;
+  const scaleW = wrap.clientWidth / designWidth;
+  const scaleH = wrap.clientHeight / naturalHeight;
   const scale = Math.min(scaleW, scaleH);
   canvas.style.transform = `scale(${scale})`;
 }
