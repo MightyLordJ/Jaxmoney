@@ -43,6 +43,7 @@
     align-items:center;
     min-height:100vh;
     min-height:100dvh;
+    min-height: calc(var(--vh, 1vh) * 100);
     -webkit-font-smoothing:antialiased;
   }
   .board{
@@ -465,7 +466,7 @@
   <div class="pull-indicator" id="pullIndicator"><div class="pull-spinner" id="pullSpinner"></div></div>
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.9.1</div>
+    <div class="board-version">v3.9.2</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -1265,17 +1266,30 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
+function setViewportHeight(){
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty("--vh", vh + "px");
+}
+
 function resetScrollPosition(){
   const board = document.querySelector(".board");
   if(board) board.scrollTop = 0;
   window.scrollTo(0, 0);
 }
 
-window.addEventListener("pageshow", resetScrollPosition);
+function refreshLayout(){
+  setViewportHeight();
+  resetScrollPosition();
+}
+
+window.addEventListener("load", setViewportHeight);
+window.addEventListener("resize", setViewportHeight);
+window.addEventListener("orientationchange", refreshLayout);
+window.addEventListener("pageshow", refreshLayout);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "visible") resetScrollPosition();
+  if(document.visibilityState === "visible") refreshLayout();
 });
-resetScrollPosition();
+refreshLayout();
 
 (function setupPullToRefresh(){
   const board = document.querySelector(".board");
