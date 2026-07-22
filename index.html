@@ -394,7 +394,7 @@
     appearance:none;
     touch-action: manipulation;
   }
-  .key:active{ filter: brightness(0.7); }
+  .key:active, .key.is-pressed{ filter: brightness(0.7); }
   .key-fn{ background: var(--gray-fill); color:var(--text-primary); font-weight:600; }
   .key-fn.discount-pending{ background:#5E5CE6; color:#fff; }
   .key-op{ background: var(--orange); color:#fff; font-weight:600; }
@@ -436,7 +436,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.6</div>
+    <div class="board-version">v3.7</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -1135,6 +1135,17 @@ document.querySelectorAll(".tab-item").forEach(btn=>{
 document.getElementById("pickerClose").addEventListener("click", closeCurrencyPicker);
 document.getElementById("pickerOverlay").addEventListener("click", (e)=>{
   if(e.target.id === "pickerOverlay") closeCurrencyPicker();
+});
+
+document.querySelectorAll(".key").forEach(btn=>{
+  const pressOn = ()=> btn.classList.add("is-pressed");
+  const pressOff = ()=> btn.classList.remove("is-pressed");
+  btn.addEventListener("touchstart", pressOn, {passive:true});
+  btn.addEventListener("touchend", pressOff);
+  btn.addEventListener("touchcancel", pressOff);
+  btn.addEventListener("mousedown", pressOn);
+  btn.addEventListener("mouseup", pressOff);
+  btn.addEventListener("mouseleave", pressOff);
 });
 
 populateSelects();
