@@ -91,6 +91,12 @@
   .refresh-btn svg{ width:100%; height:100%; }
   .refresh-btn.spinning svg{ animation: pull-spin 0.7s linear infinite; }
   @keyframes pull-spin{ to{ transform: rotate(360deg); } }
+  .header-offline-badge{
+    font-size:11px;
+    font-weight:600;
+    color: var(--orange);
+    white-space:nowrap;
+  }
   .updated{
     font-size:13px;
     color:var(--text-secondary);
@@ -286,16 +292,6 @@
 
   /* Converter */
   .conv-rows{ padding:6px; }
-  .offline-badge{
-    margin:6px 6px 0;
-    padding:6px 10px;
-    background: rgba(255,159,10,0.15);
-    color: var(--orange);
-    font-size:11px;
-    font-weight:600;
-    border-radius:8px;
-    text-align:center;
-  }
   .conv-row{
     display:flex;
     align-items:center;
@@ -494,13 +490,13 @@
           <path d="M3 21v-5h5"/>
         </svg>
       </button>
+      <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.9.4</div>
+    <div class="board-version">v3.9.5</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
     <div class="card">
-      <div class="offline-badge" id="convOfflineBadge" style="display:none;"></div>
       <div class="conv-rows" id="convRows"></div>
       <div class="keypad" id="keypad">
         <button class="key key-fn" data-key="C">C</button>
@@ -802,12 +798,14 @@ async function loadLatest(){
     number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
     document.getElementById("updatedAt").textContent = `更新於 ${data.date}`;
     cacheSet(cacheKey, { rate, date: data.date });
+    setHeaderOfflineBadge(false);
   }catch(e){
     const cached = cacheGet(cacheKey);
     if(cached && cached.value){
       const rate = cached.value.rate;
       number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
-      document.getElementById("updatedAt").textContent = `⚠️ 離線・上次更新 ${formatCacheTime(cached.ts)}`;
+      document.getElementById("updatedAt").textContent = `離線・上次更新 ${formatCacheTime(cached.ts)}`;
+      setHeaderOfflineBadge(true);
     }else{
       number.textContent = "讀取失敗";
       document.getElementById("updatedAt").textContent = "無法連線 (" + e.message + ")";
@@ -845,13 +843,14 @@ async function loadHistory(){
     drawChart(entries);
     updateStats(entries);
     updateChange(entries);
+    setHeaderOfflineBadge(false);
   }catch(e){
     const cached = cacheGet(cacheKey);
     if(cached && Array.isArray(cached.value) && cached.value.length >= 2){
       drawChart(cached.value);
       updateStats(cached.value);
       updateChange(cached.value);
-      chartBox.insertAdjacentHTML("beforeend", `<div class="status-msg" style="padding:8px 4px 0;">⚠️ 離線，顯示 ${formatCacheTime(cached.ts)} 的資料</div>`);
+      setHeaderOfflineBadge(true);
     }else{
       chartBox.innerHTML = `<div class="status-msg">無法載入歷史資料 (${e.message})</div>`;
     }
@@ -1056,7 +1055,7 @@ async function loadConverterRates(){
     data.forEach(row => { rates[row.quote] = row.rate; });
     convRates = rates;
     cacheSet(cacheKey, { rates, currencies: CONV_CURRENCIES.slice() });
-    setConvOfflineBadge(false);
+    setHeaderOfflineBadge(false);
     updateConvValues();
   }catch(e){
     const cached = cacheGet(cacheKey);
@@ -1065,24 +1064,18 @@ async function loadConverterRates(){
       cached.value.currencies.every((c,i)=>c===CONV_CURRENCIES[i]);
     if(sameSet){
       convRates = cached.value.rates;
-      setConvOfflineBadge(true, cached.ts);
+      setHeaderOfflineBadge(true);
     }else{
       convRates = null;
-      setConvOfflineBadge(false);
     }
     updateConvValues();
   }
 }
 
-function setConvOfflineBadge(show, ts){
-  const el = document.getElementById("convOfflineBadge");
+function setHeaderOfflineBadge(show){
+  const el = document.getElementById("headerOfflineBadge");
   if(!el) return;
-  if(show){
-    el.textContent = `⚠️ 離線中，顯示 ${formatCacheTime(ts)} 的匯率`;
-    el.style.display = "block";
-  }else{
-    el.style.display = "none";
-  }
+  el.style.display = show ? "inline" : "none";
 }
 
 function calcInputDigit(d){
