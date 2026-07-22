@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>換匯看板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board-bg: #0a0e0c;
+    --panel-bg: #10160f;
+    --panel-bg2: #121a17;
+    --bezel: #1c2420;
+    --led-red: #ff3b2f;
+    --led-red-dim: #5a1712;
+    --led-green: #29ff8c;
+    --led-green-dim: #0e4a2b;
+    --amber: #ffb300;
+    --text-dim: #7f9188;
+    --text-mid: #b7c4bd;
+    --divider: #23302a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--board-bg);
+    font-family:'Noto Sans TC', sans-serif;
+    color: var(--text-mid);
+    display:flex;
+    justify-content:center;
+    padding: 20px 12px 32px;
+    min-height:100vh;
+  }
+  .board{
+    width:100%;
+    max-width:430px;
+    background: var(--panel-bg2);
+    border-radius:14px;
+    border: 1px solid var(--bezel);
+    box-shadow: 0 0 0 6px #06090780, 0 20px 40px -20px #000c;
+    overflow:hidden;
+  }
+  .board-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 16px 10px;
+    border-bottom:1px solid var(--divider);
+  }
+  .board-title{
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:1px;
+    color:var(--text-mid);
+  }
+  .board-title span{color:var(--amber);}
+  .updated{
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    color:var(--text-dim);
+  }
+  .pair-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:16px 16px 6px;
+  }
+  select{
+    flex:1;
+    min-width:0;
+    background:#0e1512;
+    border:1px solid var(--divider);
+    color:var(--text-mid);
+    font-family:'Noto Sans TC',sans-serif;
+    font-size:13px;
+    padding:10px 6px;
+    border-radius:8px;
+    appearance:none;
+    text-align:center;
+  }
+  .swap-btn{
+    width:36px;height:36px;flex:0 0 36px;
+    border-radius:50%;
+    border:1px solid var(--divider);
+    background:#0e1512;
+    color:var(--amber);
+    font-size:17px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .swap-btn:active{transform:scale(0.92);}
+  .quick-row{
+    display:flex;
+    gap:8px;
+    padding:8px 16px 14px;
+    flex-wrap:wrap;
+  }
+  .quick-btn{
+    font-family:'Share Tech Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.5px;
+    background:transparent;
+    border:1px solid var(--divider);
+    color:var(--text-dim);
+    padding:5px 10px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .quick-btn.active{
+    border-color:var(--amber);
+    color:var(--amber);
+  }
+  .quick-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .quick-chip .quick-btn{
+    border-radius:999px 0 0 999px;
+    border-right:none;
+  }
+  .chip-remove{
+    font-family:'Share Tech Mono',monospace;
+    font-size:11px;
+    background:transparent;
+    border:1px solid var(--divider);
+    border-left:none;
+    color:var(--text-dim);
+    padding:5px 8px;
+    border-radius:0 999px 999px 0;
+    cursor:pointer;
+  }
+  .chip-remove:hover{ color:var(--led-red); }
+  .rate-display{
+    background: var(--board-bg);
+    margin:0 16px;
+    border-radius:10px;
+    padding:22px 16px 16px;
+    text-align:center;
+    border:1px solid #000;
+    box-shadow: inset 0 0 24px #00000090;
+  }
+  .rate-label{
+    font-family:'Share Tech Mono',monospace;
+    font-size:12px;
+    color:var(--text-dim);
+    letter-spacing:1px;
+  }
+  .rate-number{
+    font-family:'Share Tech Mono',monospace;
+    font-size:36px;
+    color:var(--led-red);
+    text-shadow: 0 0 6px #ff3b2f99, 0 0 18px #ff3b2f4d;
+    line-height:1.3;
+    margin:4px 0 6px;
+    letter-spacing:1px;
+  }
+  .rate-change{
+    font-family:'Share Tech Mono',monospace;
+    font-size:13px;
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    padding:3px 10px;
+    border-radius:999px;
+  }
+  .rate-change.up{color:var(--led-green); background:var(--led-green-dim);}
+  .rate-change.down{color:var(--led-red); background:var(--led-red-dim);}
+  .rate-change.flat{color:var(--text-dim); background:#1a221d;}
+  .range-tabs{
+    display:flex;
+    justify-content:space-between;
+    gap:6px;
+    padding:16px 16px 4px;
+  }
+  .range-tab{
+    flex:1;
+    font-family:'Share Tech Mono',monospace;
+    font-size:13px;
+    text-align:center;
+    padding:7px 0;
+    border-radius:6px;
+    border:1px solid var(--divider);
+    color:var(--text-dim);
+    background:transparent;
+    cursor:pointer;
+  }
+  .range-tab.active{
+    border-color:var(--led-green);
+    color:var(--led-green);
+    text-shadow:0 0 6px #29ff8c66;
+  }
+  .chart-wrap{
+    padding:14px 16px 4px;
+  }
+  .chart-box{
+    background: var(--board-bg);
+    border-radius:10px;
+    border:1px solid #000;
+    padding:10px 6px 6px;
+  }
+  svg{display:block;width:100%;height:auto;}
+  .stats-row{
+    display:flex;
+    justify-content:space-around;
+    padding:14px 16px 20px;
+    font-family:'Share Tech Mono',monospace;
+    font-size:12px;
+  }
+  .stat{
+    text-align:center;
+  }
+  .stat-label{color:var(--text-dim); font-size:10px; letter-spacing:1px;}
+  .stat-value{color:var(--text-mid); font-size:14px; margin-top:2px;}
+  .footnote{
+    text-align:center;
+    font-size:10px;
+    color:var(--text-dim);
+    padding:0 16px 16px;
+    font-family:'Share Tech Mono',monospace;
+  }
+  .status-msg{
+    font-family:'Share Tech Mono',monospace;
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    padding:20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="board">
+  <div class="board-header">
+    <div class="board-title">換匯<span>看板</span></div>
+    <div class="updated" id="updatedAt">載入中...</div>
+  </div>
+
+  <div class="pair-row">
+    <select id="fromSelect"></select>
+    <button class="swap-btn" id="swapBtn" title="交換幣別">⇄</button>
+    <select id="toSelect"></select>
+    <button class="swap-btn" id="addCurrentBtn" title="加入快捷">＋</button>
+  </div>
+
+  <div class="quick-row" id="quickRow"></div>
+
+  <div class="rate-display">
+    <div class="rate-label" id="rateLabel">1 TWD =</div>
+    <div class="rate-number" id="rateNumber">— — —</div>
+    <div class="rate-change flat" id="rateChange">—</div>
+  </div>
+
+  <div class="range-tabs" id="rangeTabs"></div>
+
+  <div class="chart-wrap">
+    <div class="chart-box" id="chartBox">
+      <div class="status-msg" id="chartStatus">載入歷史資料中...</div>
+    </div>
+  </div>
+
+  <div class="stats-row" id="statsRow" style="display:none;">
+    <div class="stat"><div class="stat-label">最高</div><div class="stat-value" id="statHigh">—</div></div>
+    <div class="stat"><div class="stat-label">最低</div><div class="stat-value" id="statLow">—</div></div>
+    <div class="stat"><div class="stat-label">平均</div><div class="stat-value" id="statAvg">—</div></div>
+  </div>
+
+  <div class="footnote">資料來源：Frankfurter（各國央行牌告匯率，每日更新）</div>
+</div>
+
+<script>
+const CURRENCIES = [
+  ["TWD","新台幣"], ["USD","美元"], ["JPY","日圓"], ["EUR","歐元"],
+  ["GBP","英鎊"], ["HKD","港幣"], ["CNY","人民幣"], ["KRW","韓元"],
+  ["THB","泰銖"], ["ISK","冰島克朗"], ["AUD","澳幣"], ["CAD","加幣"],
+  ["SGD","新加坡幣"], ["MYR","馬來幣"], ["VND","越南盾"], ["PHP","菲律賓披索"],
+  ["IDR","印尼盾"], ["NZD","紐西蘭幣"], ["CHF","瑞士法郎"]
+];
+
+const RANGES = [
+  {key:"1M", days:30}, {key:"6M", days:182}, {key:"1Y", days:365}, {key:"3Y", days:1095}
+];
+
+const API = "https://api.frankfurter.dev/v2";
+
+let state = { from:"TWD", to:"JPY", range:"6M" };
+let quickPairs = [["TWD","JPY"], ["USD","TWD"], ["TWD","ISK"]];
+
+function populateSelects(){
+  const fromSel = document.getElementById("fromSelect");
+  const toSel = document.getElementById("toSelect");
+  [fromSel, toSel].forEach(sel=>{
+    sel.innerHTML = CURRENCIES.map(([code,name])=>`<option value="${code}">${code} ${name}</option>`).join("");
+  });
+  fromSel.value = state.from;
+  toSel.value = state.to;
+  fromSel.addEventListener("change", ()=>{
+    state.from = fromSel.value;
+    if(state.from === state.to){ state.to = pickDifferent(state.from); toSel.value = state.to; }
+    refreshAll();
+  });
+  toSel.addEventListener("change", ()=>{
+    state.to = toSel.value;
+    if(state.to === state.from){ state.from = pickDifferent(state.to); fromSel.value = state.from; }
+    refreshAll();
+  });
+}
+
+function pickDifferent(code){
+  const other = CURRENCIES.find(([c])=>c!==code);
+  return other ? other[0] : code;
+}
+
+function renderQuickRow(){
+  const row = document.getElementById("quickRow");
+  row.innerHTML = quickPairs.map(([f,t],i)=>`
+    <span class="quick-chip">
+      <button class="quick-btn" data-idx="${i}">${f}→${t}</button>
+      <button class="chip-remove" data-remove="${i}" title="移除">×</button>
+    </span>
+  `).join("");
+
+  row.querySelectorAll(".quick-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const [f,t] = quickPairs[+btn.dataset.idx];
+      state.from = f; state.to = t;
+      document.getElementById("fromSelect").value = state.from;
+      document.getElementById("toSelect").value = state.to;
+      refreshAll();
+    });
+  });
+  row.querySelectorAll(".chip-remove").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      quickPairs.splice(+btn.dataset.remove, 1);
+      renderQuickRow();
+    });
+  });
+  syncQuickActive();
+}
+
+document.getElementById("addCurrentBtn").addEventListener("click", ()=>{
+  const exists = quickPairs.some(([f,t])=>f===state.from && t===state.to);
+  if(!exists){
+    quickPairs.push([state.from, state.to]);
+    renderQuickRow();
+  }
+});
+
+function syncQuickActive(){
+  document.querySelectorAll(".quick-btn").forEach(btn=>{
+    const pair = quickPairs[+btn.dataset.idx];
+    btn.classList.toggle("active", pair && pair[0]===state.from && pair[1]===state.to);
+  });
+}
+
+function renderRangeTabs(){
+  const wrap = document.getElementById("rangeTabs");
+  wrap.innerHTML = RANGES.map(r=>`<button class="range-tab" data-key="${r.key}">${r.key}</button>`).join("");
+  wrap.querySelectorAll(".range-tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.range = btn.dataset.key;
+      syncRangeActive();
+      loadHistory();
+    });
+  });
+  syncRangeActive();
+}
+
+function syncRangeActive(){
+  document.querySelectorAll(".range-tab").forEach(btn=>{
+    btn.classList.toggle("active", btn.dataset.key===state.range);
+  });
+}
+
+document.getElementById("swapBtn").addEventListener("click", ()=>{
+  [state.from, state.to] = [state.to, state.from];
+  document.getElementById("fromSelect").value = state.from;
+  document.getElementById("toSelect").value = state.to;
+  refreshAll();
+});
+
+function fmtDate(d){
+  return d.toISOString().slice(0,10);
+}
+
+function decimalsFor(rate){
+  if(rate >= 100) return 2;
+  if(rate >= 1) return 3;
+  return 5;
+}
+
+async function loadLatest(){
+  const label = document.getElementById("rateLabel");
+  const number = document.getElementById("rateNumber");
+  label.textContent = `1 ${state.from} =`;
+  number.textContent = "— — —";
+  try{
+    const res = await fetch(`${API}/rate/${state.from}/${state.to}`);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+    const rate = data.rate;
+    number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
+    document.getElementById("updatedAt").textContent = `更新於 ${data.date}`;
+  }catch(e){
+    number.textContent = "讀取失敗";
+    document.getElementById("updatedAt").textContent = "無法連線 (" + e.message + ")";
+  }
+}
+
+async function loadHistory(){
+  const chartBox = document.getElementById("chartBox");
+  const statsRow = document.getElementById("statsRow");
+  chartBox.innerHTML = `<div class="status-msg">載入歷史資料中...</div>`;
+  statsRow.style.display = "none";
+
+  const r = RANGES.find(r=>r.key===state.range);
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - r.days);
+
+  try{
+    const res = await fetch(`${API}/rates?base=${state.from}&quotes=${state.to}&from=${fmtDate(start)}&to=${fmtDate(end)}`);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+    const entries = data
+      .map(row=>({date: row.date, rate: row.rate}))
+      .filter(e=>typeof e.rate === "number")
+      .sort((a,b)=>a.date.localeCompare(b.date));
+
+    if(entries.length < 2){
+      chartBox.innerHTML = `<div class="status-msg">此區間資料不足</div>`;
+      return;
+    }
+
+    drawChart(entries);
+    updateStats(entries);
+    updateChange(entries);
+  }catch(e){
+    chartBox.innerHTML = `<div class="status-msg">無法載入歷史資料 (${e.message})</div>`;
+  }
+}
+
+function updateChange(entries){
+  const first = entries[0].rate;
+  const last = entries[entries.length-1].rate;
+  const pct = ((last-first)/first)*100;
+  const el = document.getElementById("rateChange");
+  const sign = pct > 0.01 ? "up" : pct < -0.01 ? "down" : "flat";
+  const arrow = sign==="up" ? "▲" : sign==="down" ? "▼" : "▬";
+  el.className = `rate-change ${sign}`;
+  el.textContent = `${arrow} ${Math.abs(pct).toFixed(2)}% (${state.range})`;
+}
+
+function updateStats(entries){
+  const rates = entries.map(e=>e.rate);
+  const high = Math.max(...rates);
+  const low = Math.min(...rates);
+  const avg = rates.reduce((a,b)=>a+b,0)/rates.length;
+  document.getElementById("statHigh").textContent = high.toFixed(decimalsFor(high));
+  document.getElementById("statLow").textContent = low.toFixed(decimalsFor(low));
+  document.getElementById("statAvg").textContent = avg.toFixed(decimalsFor(avg));
+  document.getElementById("statsRow").style.display = "flex";
+}
+
+function drawChart(entries){
+  const chartBox = document.getElementById("chartBox");
+  const W = 380, H = 140, PAD = 8;
+  const rates = entries.map(e=>e.rate);
+  const min = Math.min(...rates);
+  const max = Math.max(...rates);
+  const span = (max - min) || 1;
+
+  const points = entries.map((e,i)=>{
+    const x = PAD + (i/(entries.length-1)) * (W - PAD*2);
+    const y = H - PAD - ((e.rate - min)/span) * (H - PAD*2);
+    return [x,y];
+  });
+
+  const linePath = points.map((p,i)=>(i===0?"M":"L")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
+  const areaPath = linePath + ` L${points[points.length-1][0].toFixed(1)},${H} L${points[0][0].toFixed(1)},${H} Z`;
+
+  chartBox.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#29ff8c" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="#29ff8c" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#areaFill)"/>
+      <path d="${linePath}" fill="none" stroke="#29ff8c" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 3px #29ff8c88)"/>
+    </svg>
+  `;
+}
+
+function refreshAll(){
+  syncQuickActive();
+  loadLatest();
+  loadHistory();
+}
+
+populateSelects();
+renderQuickRow();
+renderRangeTabs();
+refreshAll();
+</script>
+
+</body>
+</html>
