@@ -436,7 +436,7 @@
 <div class="board">
   <div class="board-header">
     <div class="board-title">JaxMoney</div>
-    <div class="board-version">v3.8</div>
+    <div class="board-version">v4.0</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -575,7 +575,28 @@ const RANGES = [
 const API = "https://api.frankfurter.dev/v2";
 
 let state = { from:"TWD", to:"JPY", range:"6M" };
-let quickPairs = [["TWD","JPY"], ["USD","TWD"], ["TWD","ISK"]];
+const QUICK_PAIRS_KEY = "jaxmoney-quickpairs";
+let quickPairs = loadQuickPairs();
+
+function loadQuickPairs(){
+  try{
+    const raw = localStorage.getItem(QUICK_PAIRS_KEY);
+    if(!raw) return [["USD","TWD"], ["TWD","JPY"]];
+    const parsed = JSON.parse(raw);
+    if(Array.isArray(parsed) && parsed.every(p=>Array.isArray(p) && p.length===2)){
+      return parsed;
+    }
+    return [["USD","TWD"], ["TWD","JPY"]];
+  }catch(e){
+    return [["USD","TWD"], ["TWD","JPY"]];
+  }
+}
+
+function saveQuickPairs(){
+  try{
+    localStorage.setItem(QUICK_PAIRS_KEY, JSON.stringify(quickPairs));
+  }catch(e){ /* storage unavailable, ignore */ }
+}
 
 function populateSelects(){
   const fromSel = document.getElementById("fromSelect");
@@ -624,6 +645,7 @@ function renderQuickRow(){
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
       quickPairs.splice(+btn.dataset.remove, 1);
+      saveQuickPairs();
       renderQuickRow();
     });
   });
@@ -634,6 +656,7 @@ document.getElementById("addCurrentBtn").addEventListener("click", ()=>{
   const exists = quickPairs.some(([f,t])=>f===state.from && t===state.to);
   if(!exists){
     quickPairs.push([state.from, state.to]);
+    saveQuickPairs();
     renderQuickRow();
   }
 });
