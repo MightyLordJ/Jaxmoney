@@ -27,8 +27,6 @@
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
   }
   *{box-sizing:border-box;}
-  html{ touch-action: manipulation; }
-  button, select, .key, .conv-row, .quick-btn, .range-tab, .tab-item{ touch-action: manipulation; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -48,10 +46,10 @@
     padding: calc(20px + env(safe-area-inset-top)) 20px 4px;
   }
   .board-title{
-    font-size:17px;
+    font-size:34px;
     font-weight:700;
-    letter-spacing:-0.2px;
-    color:#5E5CE6;
+    letter-spacing:-0.5px;
+    color:var(--text-primary);
   }
   .updated{
     font-size:13px;
@@ -302,12 +300,10 @@
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
-    -webkit-tap-highlight-color: transparent;
   }
   .key:active{ opacity:0.6; }
   .key-fn{ background: var(--gray-fill); color:var(--text-primary); font-weight:600; }
   .key-op{ background: var(--orange); color:#fff; font-weight:600; }
-  .key-op.pending{ background:#fff; color:var(--orange); box-shadow: inset 0 0 0 2px var(--orange); }
   .key-eq{ background: var(--orange); color:#fff; font-weight:600; }
   .key-zero{ grid-column: span 2; text-align:center; }
 </style>
@@ -380,7 +376,7 @@
     </div>
   </div>
 
-  <div class="footnote">JaxMoney v1.2</div>
+  <div class="footnote">資料來源：Frankfurter（各國央行牌告匯率，每日更新）</div>
 </div>
 
 <div class="tab-bar">
@@ -670,7 +666,7 @@ function refreshAll(){
 let CONV_CURRENCIES = ["TWD","USD","JPY","ISK","EUR"];
 let convRates = null;              // { TWD:1, USD:.., JPY:.., ISK:.., EUR:.. }  (units per 1 TWD)
 let convActive = "TWD";
-let calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
+let calc = { display:"0", prevValue:null, operator:null };
 
 function renderConvRows(){
   const wrap = document.getElementById("convRows");
@@ -687,7 +683,7 @@ function renderConvRows(){
     row.addEventListener("click", (e)=>{
       if(e.target.closest("select")) return;
       convActive = row.dataset.code;
-      calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
+      calc = { display:"0", prevValue:null, operator:null };
       renderConvRows();
       updateConvValues();
     });
@@ -704,7 +700,7 @@ function renderConvRows(){
       }
       CONV_CURRENCIES[idx] = newCode;
       convActive = newCode;
-      calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
+      calc = { display:"0", prevValue:null, operator:null };
       renderConvRows();
       loadConverterRates();
     });
@@ -758,32 +754,20 @@ async function loadConverterRates(){
 }
 
 function calcInputDigit(d){
-  if(calc.freshOperand){
-    calc.display = (d === ".") ? "0." : d;
-    calc.freshOperand = false;
-    return;
-  }
   if(calc.display === "0" && d !== "."){ calc.display = d; }
   else if(d === "." && calc.display.includes(".")){ /* ignore */ }
   else{ calc.display += d; }
 }
 
-function formatCalcNumber(n){
-  if(!isFinite(n)) return "0";
-  let s = n.toFixed(10).replace(/\.?0+$/, "");
-  return s === "" || s === "-" ? "0" : s;
-}
-
 function calcApplyOperator(op){
   const current = parseFloat(calc.display);
-  if(calc.operator && !calc.freshOperand){
+  if(calc.operator && calc.prevValue !== null){
     calc.prevValue = calcCompute(calc.prevValue, current, calc.operator);
-    calc.display = formatCalcNumber(calc.prevValue);
-  }else if(calc.prevValue === null){
+    calc.display = String(calc.prevValue);
+  }else{
     calc.prevValue = current;
   }
   calc.operator = op;
-  calc.freshOperand = true;
 }
 
 function calcCompute(a, b, op){
@@ -800,20 +784,18 @@ function calcEquals(){
   if(calc.operator === null) return;
   const current = parseFloat(calc.display);
   const result = calcCompute(calc.prevValue, current, calc.operator);
-  calc.display = formatCalcNumber(result);
+  calc.display = String(result);
   calc.operator = null;
   calc.prevValue = null;
-  calc.freshOperand = true;
 }
 
 function calcPercent(){
   const current = parseFloat(calc.display) || 0;
   if(calc.operator && calc.prevValue !== null){
-    calc.display = formatCalcNumber(calc.prevValue * (current/100));
+    calc.display = String(calc.prevValue * (current/100));
   }else{
-    calc.display = formatCalcNumber(current/100);
+    calc.display = String(current/100);
   }
-  calc.freshOperand = true;
 }
 
 document.getElementById("keypad").addEventListener("click", (e)=>{
@@ -821,10 +803,9 @@ document.getElementById("keypad").addEventListener("click", (e)=>{
   if(!btn) return;
   const k = btn.dataset.key;
   if(k === "C"){
-    calc = { display:"0", prevValue:null, operator:null, freshOperand:false };
+    calc = { display:"0", prevValue:null, operator:null };
   }else if(k === "back"){
-    if(calc.freshOperand){ /* nothing typed yet for this operand */ }
-    else{ calc.display = calc.display.length > 1 ? calc.display.slice(0,-1) : "0"; }
+    calc.display = calc.display.length > 1 ? calc.display.slice(0,-1) : "0";
   }else if(k === "%"){
     calcPercent();
   }else if(k === "="){
@@ -835,14 +816,7 @@ document.getElementById("keypad").addEventListener("click", (e)=>{
     calcInputDigit(k);
   }
   updateConvValues();
-  syncOperatorHighlight();
 });
-
-function syncOperatorHighlight(){
-  document.querySelectorAll(".key-op").forEach(btn=>{
-    btn.classList.toggle("pending", calc.operator === btn.dataset.key && calc.freshOperand === true);
-  });
-}
 
 function switchView(viewId){
   document.querySelectorAll(".view-panel").forEach(el=>{
