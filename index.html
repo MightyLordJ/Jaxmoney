@@ -39,25 +39,22 @@
     font-family: var(--font);
     color: var(--text-primary);
     display:flex;
-    flex-direction:column;
     align-items:center;
-    min-height:100vh;
-    min-height:100dvh;
-    min-height: calc(var(--vh, 1vh) * 100);
+    justify-content:center;
     -webkit-font-smoothing:antialiased;
   }
   html, body{ overscroll-behavior: none; height: 100%; overflow: hidden; }
+  .app-canvas{
+    width:430px;
+    display:flex;
+    flex-direction:column;
+    background: var(--page-bg);
+    transform-origin: center center;
+    flex:0 0 auto;
+  }
   .board{
     width:100%;
-    max-width:430px;
-    flex:1 1 auto;
-    overflow-y:auto;
-    min-height:0;
-    -webkit-overflow-scrolling:touch;
-    overscroll-behavior: none;
-  }
-  .board-inner{
-    transform-origin: top left;
+    overflow:visible;
   }
   .board-header{
     padding: calc(10px + env(safe-area-inset-top)) 20px 4px;
@@ -264,7 +261,6 @@
   }
   .tab-bar{
     width:100%;
-    max-width:430px;
     flex:0 0 auto;
     display:flex;
     justify-content:center;
@@ -482,8 +478,8 @@
 </head>
 <body>
 
+<div class="app-canvas" id="appCanvas">
 <div class="board">
-<div class="board-inner" id="boardInner">
   <div class="board-header">
     <div class="board-title-group">
       <div class="board-title">JaxMoney</div>
@@ -497,7 +493,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.0.1</div>
+    <div class="board-version">v3.1.0</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -564,20 +560,6 @@
     </div>
   </div>
 </div>
-</div>
-
-<div class="picker-overlay" id="pickerOverlay" style="display:none;">
-  <div class="picker-sheet">
-    <div class="picker-header">
-      <span>選擇幣別</span>
-      <button class="picker-close" id="pickerClose">完成</button>
-    </div>
-    <div class="picker-search-wrap">
-      <input type="text" id="pickerSearch" class="picker-search" placeholder="搜尋幣別代碼或名稱，例如 ISK" autocomplete="off" autocapitalize="characters">
-    </div>
-    <div class="picker-list" id="pickerList"></div>
-  </div>
-</div>
 
 <div class="tab-bar">
   <button class="tab-item active" id="tabConverter" data-view="viewConverter">
@@ -609,6 +591,20 @@
     </span>
     <span>歷史匯率</span>
   </button>
+</div>
+</div>
+
+<div class="picker-overlay" id="pickerOverlay" style="display:none;">
+  <div class="picker-sheet">
+    <div class="picker-header">
+      <span>選擇幣別</span>
+      <button class="picker-close" id="pickerClose">完成</button>
+    </div>
+    <div class="picker-search-wrap">
+      <input type="text" id="pickerSearch" class="picker-search" placeholder="搜尋幣別代碼或名稱，例如 ISK" autocomplete="off" autocapitalize="characters">
+    </div>
+    <div class="picker-list" id="pickerList"></div>
+  </div>
 </div>
 
 <script>
@@ -1301,7 +1297,7 @@ function switchView(viewId){
   if(viewId === "viewConverter" && convRates === null){
     loadConverterRates();
   }
-  requestAnimationFrame(fitBoardToScreen);
+  requestAnimationFrame(fitAppCanvas);
 }
 
 document.querySelectorAll(".tab-item").forEach(btn=>{
@@ -1330,44 +1326,48 @@ function setViewportHeight(){
 }
 
 function resetScrollPosition(){
-  const board = document.querySelector(".board");
-  if(board) board.scrollTop = 0;
   window.scrollTo(0, 0);
 }
 
-function fitBoardToScreen(){
-  const board = document.querySelector(".board");
-  const inner = document.getElementById("boardInner");
-  if(!board || !inner) return;
-  inner.style.width = "";
-  inner.style.transform = "none";
-  const availableHeight = board.clientHeight;
-  const contentHeight = inner.scrollHeight;
-  if(contentHeight > availableHeight && availableHeight > 0){
-    const scale = availableHeight / contentHeight;
-    inner.style.width = (100 / scale) + "%";
-    inner.style.transform = `scale(${scale})`;
-  }
+function fitAppCanvas(){
+  const canvas = document.getElementById("appCanvas");
+  if(!canvas) return;
+  canvas.style.transform = "none";
+  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
+  const naturalHeight = canvas.scrollHeight; // natural height of header + active view + tab-bar
+  if(!designWidth || !naturalHeight) return;
+  const scaleW = window.innerWidth / designWidth;
+  const scaleH = window.innerHeight / naturalHeight;
+  const scale = Math.min(scaleW, scaleH);
+  canvas.style.transform = `scale(${scale})`;
 }
 
 function refreshLayout(){
   setViewportHeight();
   resetScrollPosition();
-  requestAnimationFrame(fitBoardToScreen);
+  requestAnimationFrame(fitAppCanvas);
+}
+
+function delayedRefreshLayout(){
+  refreshLayout();
+  setTimeout(refreshLayout, 150);
+  setTimeout(refreshLayout, 400);
+  setTimeout(refreshLayout, 800);
 }
 
 window.addEventListener("load", setViewportHeight);
-window.addEventListener("resize", setViewportHeight);
-window.addEventListener("orientationchange", refreshLayout);
-window.addEventListener("pageshow", refreshLayout);
+window.addEventListener("resize", refreshLayout);
+window.addEventListener("orientationchange", delayedRefreshLayout);
+window.addEventListener("pageshow", delayedRefreshLayout);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "visible") refreshLayout();
+  if(document.visibilityState === "visible") delayedRefreshLayout();
 });
 refreshLayout();
 
 document.getElementById("refreshBtn").addEventListener("click", ()=>{
   const btn = document.getElementById("refreshBtn");
   btn.classList.add("spinning");
+  refreshLayout();
   doRefresh().finally(()=>{
     setTimeout(()=>btn.classList.remove("spinning"), 300);
   });
