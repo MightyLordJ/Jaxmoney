@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100svh; }
+  html, body{ height:100%; height:100dvh; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -40,7 +40,7 @@
     color: var(--text-primary);
     -webkit-font-smoothing:antialiased;
   }
-  html, body{ overscroll-behavior: none; height: 100%; height: 100svh; overflow: hidden; }
+  html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
   .board-header{
     position:fixed;
     top:0; left:0; right:0;
@@ -56,8 +56,7 @@
   .canvas-wrap{
     position:fixed;
     top: var(--header-height, 0px);
-    left:0; right:0;
-    bottom: var(--dots-height, 0px);
+    left:0; right:0; bottom:0;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -291,15 +290,10 @@
     padding:28px 20px;
   }
   .page-dots{
-    position:fixed;
-    bottom:0; left:0; right:0;
-    z-index:20;
     display:flex;
     justify-content:center;
     gap:8px;
-    padding: 4px 0 4px;
-    background: rgba(255,0,0,0.25);
-    border-top: 2px solid yellow;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
   }
   .page-dot{
     width:7px;
@@ -310,14 +304,14 @@
   .page-dot.active{ background:#5E5CE6; }
 
   /* Converter */
-  .conv-rows{ padding:7px; }
+  .conv-rows{ padding:8px; }
   .conv-row{
     display:flex;
     align-items:center;
     gap:12px;
-    padding:10px 12px;
+    padding:11px 12px;
     border-radius:13px;
-    margin-bottom:7px;
+    margin-bottom:8px;
     background: var(--gray-fill);
     cursor:pointer;
   }
@@ -353,7 +347,7 @@
   .conv-value{
     flex:1;
     text-align:right;
-    font-size:22px;
+    font-size:23px;
     font-weight:600;
     font-variant-numeric: tabular-nums;
     color:var(--text-primary);
@@ -441,16 +435,16 @@
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
-    gap:10px;
-    padding:9px 9px 13px;
+    gap:11px;
+    padding:10px 10px 14px;
   }
   .key{
     font-family: var(--font);
-    font-size:22px;
+    font-size:24px;
     font-weight:500;
     border:none;
-    border-radius:14px;
-    padding:20px 0;
+    border-radius:15px;
+    padding:21px 0;
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
@@ -511,9 +505,8 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.4.5</div>
+  <div class="board-version">v3.3.1</div>
 </div>
-<div id="debugOverlay" style="position:fixed; top:calc(var(--header-height,60px) + 2px); left:4px; right:4px; z-index:999; font-family:monospace; font-size:10px; color:#0f0; background:rgba(0,0,0,0.75); padding:4px 6px; border-radius:6px; pointer-events:none; white-space:pre-line;">debug: waiting...</div>
 
 <div class="canvas-wrap">
 <div class="app-canvas" id="appCanvas">
@@ -586,17 +579,16 @@
   </div>
   </div>
 </div>
-</div>
-</div>
-
 <div class="page-dots" id="pageDots">
   <span class="page-dot active" data-view="viewConverter"></span>
   <span class="page-dot" data-view="viewHistory"></span>
 </div>
+</div>
+</div>
 
 <div class="picker-overlay" id="pickerOverlay" style="display:none;">
   <div class="picker-sheet">
-  <div class="picker-header">
+    <div class="picker-header">
       <span>選擇幣別</span>
       <button class="picker-close" id="pickerClose">完成</button>
     </div>
@@ -1315,6 +1307,7 @@ let canvasScale = 1;
 function goToView(index, animate){
   index = Math.max(0, Math.min(VIEW_ORDER.length - 1, index));
   const track = document.getElementById("viewTrack");
+  const wasIndex = activeViewIndex;
   activeViewIndex = index;
 
   track.style.transition = animate ? "transform 0.25s ease" : "none";
@@ -1328,7 +1321,9 @@ function goToView(index, animate){
   if(viewId === "viewConverter" && convRates === null){
     loadConverterRates();
   }
-  requestAnimationFrame(fitAppCanvas);
+  if(wasIndex !== index){
+    requestAnimationFrame(fitAppCanvas);
+  }
 }
 
 function switchView(viewId){
@@ -1426,14 +1421,12 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
-function setHeaderHeightVar(){
+function setViewportHeight(){
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty("--vh", vh + "px");
   const header = document.getElementById("boardHeader");
   if(header){
     document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
-  }
-  const dots = document.getElementById("pageDots");
-  if(dots){
-    document.documentElement.style.setProperty("--dots-height", dots.offsetHeight + "px");
   }
 }
 
@@ -1444,96 +1437,43 @@ function resetScrollPosition(){
 function fitAppCanvas(){
   const wrap = document.querySelector(".canvas-wrap");
   const canvas = document.getElementById("appCanvas");
-  const dbg = document.getElementById("debugOverlay");
   if(!wrap || !canvas) return;
   canvas.style.transform = "none";
-  const designWidth = 430; // matches the fixed CSS width:430px on .app-canvas — hardcoded
-                           // instead of measured, since measuring can itself be thrown off
-                           // by a transform/reflow in progress.
+  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
   const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  const wrapWidth = wrap.clientWidth;
-  const wrapHeight = wrap.clientHeight;
-
-  // Bail out entirely if the wrap hasn't actually been laid out yet — computing
-  // a scale from zero/garbage dimensions is worse than just skipping this frame
-  // and letting the next scheduled retry try again with real numbers.
-  if(!naturalHeight || wrapWidth < 100 || wrapHeight < 100){
-    if(dbg) dbg.textContent = `debug: SKIPPED (wrapW=${wrapWidth} wrapH=${wrapHeight} naturalH=${naturalHeight})\ninnerW=${window.innerWidth} innerH=${window.innerHeight} vv=${window.visualViewport?window.visualViewport.height:"n/a"}`;
-    return;
-  }
-
-  const scaleW = wrapWidth / designWidth;
-  const scaleH = wrapHeight / naturalHeight;
-  let scale = Math.min(scaleW, scaleH);
-  let usedFallback = false;
-
-  // Defensive fallback: if the computed scale is implausibly small (or NaN), the
-  // height reading itself is almost certainly the untrustworthy one (a cold-start
-  // false-URL-bar misread) — fall back to width-only sizing rather than trusting it.
-  if(scale < 0.3 || isNaN(scale)){
-    scale = scaleW;
-    usedFallback = true;
-  }
-  // If even the width-only fallback is nonsensical, skip rather than apply it —
-  // this is what previously let scale collapse all the way to 0.
-  if(scale < 0.3 || isNaN(scale)){
-    if(dbg) dbg.textContent = `debug: SKIPPED bad fallback (scaleW=${scaleW.toFixed(3)} scaleH=${scaleH.toFixed(3)})`;
-    return;
-  }
-
-  if(dbg){
-    dbg.textContent = `debug: wrapW=${wrapWidth} wrapH=${wrapHeight} naturalH=${naturalHeight}\nscaleW=${scaleW.toFixed(3)} scaleH=${scaleH.toFixed(3)} used=${usedFallback?"fallback":"min"} -> scale=${scale.toFixed(3)}\ninnerW=${window.innerWidth} innerH=${window.innerHeight} vv=${window.visualViewport?window.visualViewport.height:"n/a"}`;
-  }
-
+  if(!designWidth || !naturalHeight) return;
+  const scaleW = wrap.clientWidth / designWidth;
+  const scaleH = wrap.clientHeight / naturalHeight;
+  const scale = Math.min(scaleW, scaleH);
   canvasScale = scale;
   canvas.style.transform = `scale(${scale})`;
 }
 
 function refreshLayout(){
-  setHeaderHeightVar();
+  setViewportHeight();
   resetScrollPosition();
   requestAnimationFrame(fitAppCanvas);
 }
 
-// Aggressive retry schedule: catches the toolbar settling at almost any point
-// in the first ~2 seconds, rather than betting on one or two fixed delays.
-function aggressiveRefresh(){
-  const delays = [0, 60, 120, 200, 300, 450, 650, 900, 1200, 1600, 2000];
-  delays.forEach(ms => setTimeout(refreshLayout, ms));
+function delayedRefreshLayout(){
+  refreshLayout();
+  setTimeout(refreshLayout, 150);
+  setTimeout(refreshLayout, 400);
+  setTimeout(refreshLayout, 800);
 }
 
-// Watch the body's real rendered size directly — as soon as iOS releases the
-// fake URL bar and the true height becomes available, this fires immediately
-// and re-fits right away instead of waiting for the next scheduled retry.
-const ro = new ResizeObserver(()=>{
-  refreshLayout();
-});
-window.addEventListener("DOMContentLoaded", ()=>{
-  ro.observe(document.body);
-});
-
-// Cold-start nudge: a tiny scroll jiggle forces WebKit to repaint and settle
-// on the real viewport size sooner, then immediately re-fit afterward.
-window.addEventListener("load", ()=>{
-  setTimeout(()=>{
-    window.scrollTo(0, 1);
-    requestAnimationFrame(()=>{
-      window.scrollTo(0, 0);
-      refreshLayout();
-    });
-  }, 150);
-});
-
+window.addEventListener("load", setViewportHeight);
 window.addEventListener("resize", refreshLayout);
 if(window.visualViewport){
   window.visualViewport.addEventListener("resize", refreshLayout);
+  window.visualViewport.addEventListener("scroll", refreshLayout);
 }
-window.addEventListener("orientationchange", aggressiveRefresh);
-window.addEventListener("pageshow", aggressiveRefresh);
+window.addEventListener("orientationchange", delayedRefreshLayout);
+window.addEventListener("pageshow", delayedRefreshLayout);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "visible") aggressiveRefresh();
+  if(document.visibilityState === "visible") delayedRefreshLayout();
 });
-aggressiveRefresh();
+refreshLayout();
 
 document.getElementById("refreshBtn").addEventListener("click", ()=>{
   const btn = document.getElementById("refreshBtn");
