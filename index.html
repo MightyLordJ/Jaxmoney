@@ -56,7 +56,8 @@
   .canvas-wrap{
     position:fixed;
     top: var(--header-height, 0px);
-    left:0; right:0; bottom:0;
+    left:0; right:0;
+    bottom: var(--dots-height, 0px);
     display:flex;
     align-items:center;
     justify-content:center;
@@ -290,6 +291,9 @@
     padding:28px 20px;
   }
   .page-dots{
+    position:fixed;
+    bottom:0; left:0; right:0;
+    z-index:20;
     display:flex;
     justify-content:center;
     gap:8px;
@@ -505,7 +509,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.7</div>
+  <div class="board-version">v3.4.0</div>
 </div>
 <div id="debugOverlay" style="position:fixed; top:calc(var(--header-height,60px) + 2px); left:4px; right:4px; z-index:999; font-family:monospace; font-size:10px; color:#0f0; background:rgba(0,0,0,0.75); padding:4px 6px; border-radius:6px; pointer-events:none; white-space:pre-line;">debug: waiting...</div>
 
@@ -580,16 +584,17 @@
   </div>
   </div>
 </div>
+</div>
+</div>
+
 <div class="page-dots" id="pageDots">
   <span class="page-dot active" data-view="viewConverter"></span>
   <span class="page-dot" data-view="viewHistory"></span>
 </div>
-</div>
-</div>
 
 <div class="picker-overlay" id="pickerOverlay" style="display:none;">
   <div class="picker-sheet">
-    <div class="picker-header">
+  <div class="picker-header">
       <span>選擇幣別</span>
       <button class="picker-close" id="pickerClose">完成</button>
     </div>
@@ -1423,6 +1428,10 @@ function setHeaderHeightVar(){
   const header = document.getElementById("boardHeader");
   if(header){
     document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
+  }
+  const dots = document.getElementById("pageDots");
+  if(dots){
+    document.documentElement.style.setProperty("--dots-height", dots.offsetHeight + "px");
   }
 }
 
