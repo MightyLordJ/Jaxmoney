@@ -50,7 +50,7 @@
     align-items:baseline;
     justify-content:space-between;
     background: var(--page-bg);
-    max-width:430px;
+    max-width:375px;
     margin:0 auto;
   }
   .canvas-wrap{
@@ -66,7 +66,7 @@
     overscroll-behavior:none;
   }
   .app-canvas{
-    width:430px;
+    width:375px;
     display:flex;
     flex-direction:column;
     background: var(--page-bg);
@@ -300,14 +300,14 @@
   .page-dot.active{ background:#5E5CE6; }
 
   /* Converter */
-  .conv-rows{ padding:8px; }
+  .conv-rows{ padding:5px; }
   .conv-row{
     display:flex;
     align-items:center;
-    gap:12px;
-    padding:11px 12px;
-    border-radius:13px;
-    margin-bottom:8px;
+    gap:10px;
+    padding:7px 10px;
+    border-radius:12px;
+    margin-bottom:5px;
     background: var(--gray-fill);
     cursor:pointer;
   }
@@ -343,7 +343,7 @@
   .conv-value{
     flex:1;
     text-align:right;
-    font-size:23px;
+    font-size:20px;
     font-weight:600;
     font-variant-numeric: tabular-nums;
     color:var(--text-primary);
@@ -429,16 +429,16 @@
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
-    gap:11px;
-    padding:10px 10px 14px;
+    gap:7px;
+    padding:6px 8px 10px;
   }
   .key{
     font-family: var(--font);
-    font-size:24px;
+    font-size:20px;
     font-weight:500;
     border:none;
-    border-radius:15px;
-    padding:21px 0;
+    border-radius:13px;
+    padding:15px 0;
     background: var(--gray-fill-2);
     color:var(--text-primary);
     cursor:pointer;
@@ -499,7 +499,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.4.1</div>
+  <div class="board-version">v3.4.2</div>
 </div>
 
 <div class="canvas-wrap">
