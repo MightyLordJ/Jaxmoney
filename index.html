@@ -31,61 +31,35 @@
   }
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
-  button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100svh; overflow:hidden; overscroll-behavior: none; }
+  button, select, .key, .conv-row, .quick-btn, .range-tab, .tab-item{ touch-action: manipulation; }
+  html, body{ height:100%; }
   body{
     margin:0;
     background: var(--page-bg);
     font-family: var(--font);
     color: var(--text-primary);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    overflow:hidden;
     -webkit-font-smoothing:antialiased;
   }
+  html, body{ overscroll-behavior: none; }
+  .board{
+    width:100%;
+    max-width:430px;
+    flex:0 0 auto;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior: none;
+    /* height is set explicitly via JS (applyLayoutHeights) — not derived from flex
+       against body's height, which is what let a short cold-start body squeeze it */
+  }
   .board-header{
-    position:fixed;
-    top:0; left:0; right:0;
-    z-index:20;
-    padding: calc(10px + env(safe-area-inset-top)) 20px 8px;
+    padding: calc(10px + env(safe-area-inset-top)) 20px 4px;
     display:flex;
     align-items:baseline;
     justify-content:space-between;
-    background: var(--page-bg);
-    max-width:375px;
-    margin:0 auto;
-  }
-  .canvas-wrap{
-    position:fixed;
-    top: var(--header-height, 0px);
-    left:0; right:0; bottom:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    overflow:hidden;
-    touch-action:none;
-  }
-  .app-canvas{
-    width:375px;
-    display:flex;
-    flex-direction:column;
-    background: var(--page-bg);
-    transform-origin: center center;
-  }
-  .board{
-    width:100%;
-    overflow:visible;
-  }
-  .view-container{
-    width:100%;
-    overflow:hidden;
-    position:relative;
-  }
-  .view-track{
-    display:flex;
-    width:200%;
-  }
-  .view-panel{
-    width:50%;
-    flex:0 0 50%;
-    min-width:0;
   }
   .board-title{
     font-size:17px;
@@ -259,10 +233,6 @@
   }
   .chart-box{
     padding:12px 8px 4px;
-    min-height:160px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
   }
   svg{display:block;width:100%;height:auto;}
   .stats-row{
@@ -276,35 +246,58 @@
   .stat{ text-align:center; }
   .stat-label{color:var(--text-secondary); font-size:11px; font-weight:500;}
   .stat-value{color:var(--text-primary); font-size:15px; font-weight:600; margin-top:2px; font-variant-numeric: tabular-nums;}
+  .footnote{
+    text-align:center;
+    font-size:12px;
+    color:var(--text-secondary);
+    padding:0 20px 8px;
+  }
   .status-msg{
     font-size:13px;
     color:var(--text-secondary);
     text-align:center;
     padding:28px 20px;
   }
-  .page-dots{
+  .tab-bar{
+    width:100%;
+    max-width:430px;
+    flex:0 0 auto;
     display:flex;
     justify-content:center;
-    gap:8px;
-    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    gap:0;
+    background: #1C1C1E;
+    border-top:1px solid var(--separator);
+    padding: 5px 0 calc(5px + env(safe-area-inset-bottom));
   }
-  .page-dot{
-    width:7px;
-    height:7px;
-    border-radius:50%;
-    background: var(--gray-fill-2);
+  .tab-item{
+    width:100%;
+    max-width:215px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:1px;
+    background:transparent;
+    border:none;
+    color:var(--text-secondary);
+    font-family: var(--font);
+    font-size:10px;
+    font-weight:500;
+    padding:2px 0;
+    cursor:pointer;
   }
-  .page-dot.active{ background:#5E5CE6; }
+  .tab-icon{ width:20px; height:20px; display:flex; align-items:center; justify-content:center; }
+  .tab-icon svg{ width:100%; height:100%; }
+  .tab-item.active{ color:#5E5CE6; }
 
   /* Converter */
-  .conv-rows{ padding:5.5px; }
+  .conv-rows{ padding:6px; }
   .conv-row{
     display:flex;
     align-items:center;
-    gap:10.5px;
-    padding:7.5px 10.5px;
+    gap:10px;
+    padding:7px 10px;
     border-radius:12px;
-    margin-bottom:5.5px;
+    margin-bottom:6px;
     background: var(--gray-fill);
     cursor:pointer;
   }
@@ -349,6 +342,8 @@
     white-space:nowrap;
   }
   .conv-row.active .conv-value{ color:#fff; }
+  @keyframes tapFlash{ 0%{ opacity:0.35; } 100%{ opacity:1; } }
+  .conv-value.flash{ animation: tapFlash 0.18s ease-out; }
   .picker-overlay{
     position:fixed; inset:0;
     background: rgba(0,0,0,0.5);
@@ -362,7 +357,7 @@
     max-width:430px;
     background: var(--card-bg);
     border-radius:18px 18px 0 0;
-    height:70vh;
+    max-height:70vh;
     display:flex;
     flex-direction:column;
     padding-bottom: env(safe-area-inset-bottom);
@@ -406,7 +401,6 @@
   }
   .picker-search::placeholder{ color:var(--text-secondary); }
   .picker-list{
-    flex:1 1 auto;
     overflow-y:auto;
     padding:8px;
   }
@@ -426,8 +420,8 @@
   .keypad{
     display:grid;
     grid-template-columns: repeat(4, 1fr);
-    gap:7.5px;
-    padding:6.5px 8.5px 10.5px;
+    gap:8px;
+    padding:6px 8px 10px;
   }
   .key{
     font-family: var(--font);
@@ -483,27 +477,23 @@
 </head>
 <body>
 
-<div class="board-header" id="boardHeader">
-  <div class="board-title-group">
-    <div class="board-title">JaxMoney</div>
-    <button class="refresh-btn" id="refreshBtn" title="重新整理匯率">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/>
-        <path d="M21 3v5h-5"/>
-        <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/>
-        <path d="M3 21v-5h5"/>
-      </svg>
-    </button>
-    <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
-  </div>
-  <div class="board-version">v3.6.1</div>
-</div>
-
-<div class="canvas-wrap">
-<div class="app-canvas" id="appCanvas">
 <div class="board">
-  <div class="view-container">
-  <div class="view-track" id="viewTrack">
+  <div class="board-header">
+    <div class="board-title-group">
+      <div class="board-title">JaxMoney</div>
+      <button class="refresh-btn" id="refreshBtn" title="重新整理匯率">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/>
+          <path d="M21 3v5h-5"/>
+          <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/>
+          <path d="M3 21v-5h5"/>
+        </svg>
+      </button>
+      <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
+    </div>
+    <div class="board-version">v3.7.0</div>
+  </div>
+
   <div class="view-panel" id="viewConverter">
     <div class="card">
       <div class="conv-rows" id="convRows"></div>
@@ -534,7 +524,7 @@
     </div>
   </div>
 
-  <div class="view-panel" id="viewHistory">
+  <div class="view-panel" id="viewHistory" style="display:none;">
     <div class="updated" id="updatedAt">載入中...</div>
 
     <div class="card">
@@ -560,21 +550,13 @@
         <div class="status-msg" id="chartStatus">載入歷史資料中...</div>
       </div>
 
-      <div class="stats-row" id="statsRow">
+      <div class="stats-row" id="statsRow" style="display:none;">
         <div class="stat"><div class="stat-label">最高</div><div class="stat-value" id="statHigh">—</div></div>
         <div class="stat"><div class="stat-label">最低</div><div class="stat-value" id="statLow">—</div></div>
         <div class="stat"><div class="stat-label">平均</div><div class="stat-value" id="statAvg">—</div></div>
       </div>
     </div>
   </div>
-  </div>
-  </div>
-</div>
-<div class="page-dots" id="pageDots">
-  <span class="page-dot active" data-view="viewConverter"></span>
-  <span class="page-dot" data-view="viewHistory"></span>
-</div>
-</div>
 </div>
 
 <div class="picker-overlay" id="pickerOverlay" style="display:none;">
@@ -588,6 +570,38 @@
     </div>
     <div class="picker-list" id="pickerList"></div>
   </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-item active" id="tabConverter" data-view="viewConverter">
+    <span class="tab-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4.5" y="2.5" width="15" height="19" rx="2.8"/>
+        <line x1="7.2" y1="6.3" x2="16.8" y2="6.3"/>
+        <circle cx="7.6" cy="11" r="0.9"/>
+        <circle cx="12" cy="11" r="0.9"/>
+        <circle cx="16.4" cy="11" r="0.9"/>
+        <circle cx="7.6" cy="14.8" r="0.9"/>
+        <circle cx="12" cy="14.8" r="0.9"/>
+        <circle cx="16.4" cy="14.8" r="0.9"/>
+        <circle cx="7.6" cy="18.6" r="0.9"/>
+        <circle cx="12" cy="18.6" r="0.9"/>
+        <circle cx="16.4" cy="18.6" r="0.9"/>
+      </svg>
+    </span>
+    <span>換匯計算機</span>
+  </button>
+  <button class="tab-item" id="tabHistory" data-view="viewHistory">
+    <span class="tab-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5 20.5 V3.5"/>
+        <path d="M3.5 20.5 H20.5"/>
+        <path d="M6.2 15.8 L10.3 10.6 L13.5 13.4 L18.6 6.6"/>
+        <path d="M14.3 6.6 H18.6 V11"/>
+      </svg>
+    </span>
+    <span>歷史匯率</span>
+  </button>
 </div>
 
 <script>
@@ -802,6 +816,7 @@ async function loadHistory(){
   const chartBox = document.getElementById("chartBox");
   const statsRow = document.getElementById("statsRow");
   chartBox.innerHTML = `<div class="status-msg">載入歷史資料中...</div>`;
+  statsRow.style.display = "none";
 
   const r = RANGES.find(r=>r.key===state.range);
   const end = new Date();
@@ -860,6 +875,7 @@ function updateStats(entries){
   document.getElementById("statHigh").textContent = high.toFixed(decimalsFor(high));
   document.getElementById("statLow").textContent = low.toFixed(decimalsFor(low));
   document.getElementById("statAvg").textContent = avg.toFixed(decimalsFor(avg));
+  document.getElementById("statsRow").style.display = "flex";
 }
 
 function drawChart(entries){
@@ -906,32 +922,10 @@ function refreshAll(){
 
 /* ---------- Converter (multi-currency + calculator) ---------- */
 
-const CONV_CURRENCIES_KEY = "jaxmoney-conv-currencies";
-let CONV_CURRENCIES = loadConvCurrencies();
+let CONV_CURRENCIES = ["TWD","USD","JPY","ISK","EUR"];
 let convRates = null;              // { TWD:1, USD:.., JPY:.., ISK:.., EUR:.. }  (units per 1 TWD)
 let convActive = "TWD";
 let calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"], discountActive:false, discountBase:0, discountDigits:"" };
-
-function loadConvCurrencies(){
-  const defaultSet = ["TWD","USD","JPY","KRW","EUR"];
-  try{
-    const raw = localStorage.getItem(CONV_CURRENCIES_KEY);
-    if(!raw) return defaultSet;
-    const parsed = JSON.parse(raw);
-    if(Array.isArray(parsed) && parsed.length === 5 && parsed.every(c=>typeof c === "string")){
-      return parsed;
-    }
-    return defaultSet;
-  }catch(e){
-    return defaultSet;
-  }
-}
-
-function saveConvCurrencies(){
-  try{
-    localStorage.setItem(CONV_CURRENCIES_KEY, JSON.stringify(CONV_CURRENCIES));
-  }catch(e){ /* storage unavailable, ignore */ }
-}
 
 function renderConvRows(){
   const wrap = document.getElementById("convRows");
@@ -988,7 +982,6 @@ function renderPickerList(filterText){
         CONV_CURRENCIES[dupIdx] = CONV_CURRENCIES[targetIdx];
       }
       CONV_CURRENCIES[targetIdx] = newCode;
-      saveConvCurrencies();
       convActive = newCode;
       calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"], discountActive:false, discountBase:0, discountDigits:"" };
       closeCurrencyPicker();
@@ -1291,110 +1284,21 @@ function syncOperatorHighlight(){
   }
 }
 
-const VIEW_ORDER = ["viewConverter", "viewHistory"];
-let activeViewIndex = 0;
-let canvasScale = 1;
-
-function goToView(index, animate){
-  index = Math.max(0, Math.min(VIEW_ORDER.length - 1, index));
-  const track = document.getElementById("viewTrack");
-  const wasIndex = activeViewIndex;
-  activeViewIndex = index;
-
-  track.style.transition = animate ? "transform 0.25s ease" : "none";
-  track.style.transform = `translateX(${-index * 50}%)`;
-
-  document.querySelectorAll(".page-dot").forEach((dot,i)=>{
-    dot.classList.toggle("active", i === index);
+function switchView(viewId){
+  document.querySelectorAll(".view-panel").forEach(el=>{
+    el.style.display = (el.id === viewId) ? "block" : "none";
   });
-
-  const viewId = VIEW_ORDER[index];
+  document.querySelectorAll(".tab-item").forEach(btn=>{
+    btn.classList.toggle("active", btn.dataset.view === viewId);
+  });
   if(viewId === "viewConverter" && convRates === null){
     loadConverterRates();
   }
-  if(wasIndex !== index){
-    requestAnimationFrame(fitAppCanvas);
-  }
 }
 
-function switchView(viewId){
-  const idx = VIEW_ORDER.indexOf(viewId);
-  if(idx !== -1) goToView(idx, true);
-}
-
-document.querySelectorAll(".page-dot").forEach((dot,i)=>{
-  dot.addEventListener("click", ()=> goToView(i, true));
+document.querySelectorAll(".tab-item").forEach(btn=>{
+  btn.addEventListener("click", ()=> switchView(btn.dataset.view));
 });
-
-(function setupSwipeNav(){
-  const wrap = document.querySelector(".canvas-wrap");
-  const track = document.getElementById("viewTrack");
-  const container = document.querySelector(".view-container");
-  if(!wrap || !track || !container) return;
-
-  let dragging = false;
-  let startX = 0, startY = 0;
-  let baseOffsetPx = 0;
-  let currentDragPx = 0;
-  let axisLocked = null;
-
-  function containerWidthPx(){ return container.offsetWidth || 1; }
-
-  wrap.addEventListener("touchstart", (e)=>{
-    dragging = true;
-    axisLocked = null;
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    baseOffsetPx = -activeViewIndex * containerWidthPx();
-    currentDragPx = baseOffsetPx;
-    track.style.transition = "none";
-  }, {passive:true});
-
-  wrap.addEventListener("touchmove", (e)=>{
-    if(!dragging) return;
-    const dx = e.touches[0].clientX - startX;
-    const dy = e.touches[0].clientY - startY;
-
-    if(axisLocked === null){
-      if(Math.abs(dx) > 6 || Math.abs(dy) > 6){
-        axisLocked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-      }
-    }
-    if(axisLocked !== "x") return;
-
-    const scaledDx = dx / (canvasScale || 1);
-    let newOffset = baseOffsetPx + scaledDx;
-
-    const maxOffset = 0;
-    const minOffset = -(VIEW_ORDER.length - 1) * containerWidthPx();
-    if(newOffset > maxOffset) newOffset = maxOffset + (newOffset - maxOffset) * 0.3;
-    if(newOffset < minOffset) newOffset = minOffset + (newOffset - minOffset) * 0.3;
-
-    currentDragPx = newOffset;
-    track.style.transform = `translateX(${(newOffset / containerWidthPx()) * 50}%)`;
-    if(e.cancelable) e.preventDefault();
-  }, {passive:false});
-
-  function endDrag(){
-    if(!dragging) return;
-    dragging = false;
-    if(axisLocked !== "x"){ axisLocked = null; return; }
-    axisLocked = null;
-
-    const deltaFromBase = currentDragPx - baseOffsetPx;
-    const threshold = containerWidthPx() * 0.18;
-    let targetIndex = activeViewIndex;
-    if(deltaFromBase < -threshold && activeViewIndex < VIEW_ORDER.length - 1){
-      targetIndex = activeViewIndex + 1;
-    }else if(deltaFromBase > threshold && activeViewIndex > 0){
-      targetIndex = activeViewIndex - 1;
-    }
-    goToView(targetIndex, true);
-  }
-
-  wrap.addEventListener("touchend", endDrag);
-  wrap.addEventListener("touchcancel", endDrag);
-})();
 
 document.getElementById("pickerClose").addEventListener("click", closeCurrencyPicker);
 document.getElementById("pickerOverlay").addEventListener("click", (e)=>{
@@ -1412,49 +1316,35 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
-function setHeaderHeightVar(){
-  const header = document.getElementById("boardHeader");
-  if(header){
-    document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
-  }
+function applyLayoutHeights(){
+  const tabBar = document.querySelector(".tab-bar");
+  const board = document.querySelector(".board");
+  if(!board) return;
+  const tabBarHeight = tabBar ? tabBar.offsetHeight : 0;
+  const totalHeight = window.innerHeight;
+  board.style.height = Math.max(0, totalHeight - tabBarHeight) + "px";
 }
 
 function resetScrollPosition(){
+  const board = document.querySelector(".board");
+  if(board) board.scrollTop = 0;
   window.scrollTo(0, 0);
 }
 
-function fitAppCanvas(){
-  const wrap = document.querySelector(".canvas-wrap");
-  const canvas = document.getElementById("appCanvas");
-  if(!wrap || !canvas) return;
-  canvas.style.transform = "none";
-  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:375px
-  const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  if(!designWidth || !naturalHeight) return;
-  const scaleW = wrap.clientWidth / designWidth;
-  const scaleH = wrap.clientHeight / naturalHeight;
-  const scale = Math.min(scaleW, scaleH);
-  canvasScale = scale;
-  canvas.style.transform = `scale(${scale})`;
-}
-
 function refreshLayout(){
-  setHeaderHeightVar();
+  applyLayoutHeights();
   resetScrollPosition();
-  requestAnimationFrame(fitAppCanvas);
 }
 
 function delayedRefreshLayout(){
   refreshLayout();
-  setTimeout(refreshLayout, 150);
+  setTimeout(refreshLayout, 100);
   setTimeout(refreshLayout, 300);
+  setTimeout(refreshLayout, 600);
 }
 
-window.addEventListener("load", refreshLayout);
+window.addEventListener("load", delayedRefreshLayout);
 window.addEventListener("resize", refreshLayout);
-if(window.visualViewport){
-  window.visualViewport.addEventListener("resize", refreshLayout);
-}
 window.addEventListener("orientationchange", delayedRefreshLayout);
 window.addEventListener("pageshow", delayedRefreshLayout);
 document.addEventListener("visibilitychange", ()=>{
@@ -1465,14 +1355,14 @@ delayedRefreshLayout();
 document.getElementById("refreshBtn").addEventListener("click", ()=>{
   const btn = document.getElementById("refreshBtn");
   btn.classList.add("spinning");
-  refreshLayout();
   doRefresh().finally(()=>{
     setTimeout(()=>btn.classList.remove("spinning"), 300);
   });
 });
 
 async function doRefresh(){
-  if(VIEW_ORDER[activeViewIndex] === "viewConverter"){
+  const converterVisible = document.getElementById("viewConverter").style.display !== "none";
+  if(converterVisible){
     await loadConverterRates();
   }else{
     await Promise.all([loadLatest(), loadHistory()]);
