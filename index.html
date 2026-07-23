@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100svh; }
+  html, body{ height:100%; height:100dvh; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -40,7 +40,7 @@
     color: var(--text-primary);
     -webkit-font-smoothing:antialiased;
   }
-  html, body{ overscroll-behavior: none; height: 100%; height: 100svh; overflow: hidden; }
+  html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
   .board-header{
     position:fixed;
     top:0; left:0; right:0;
@@ -58,12 +58,10 @@
     top: var(--header-height, 0px);
     left:0; right:0; bottom:0;
     display:flex;
-    align-items:flex-start;
+    align-items:center;
     justify-content:center;
-    overflow-y:auto;
-    overflow-x:hidden;
-    -webkit-overflow-scrolling:touch;
-    overscroll-behavior:none;
+    overflow:hidden;
+    touch-action:none;
   }
   .app-canvas{
     width:430px;
@@ -507,7 +505,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.3</div>
+  <div class="board-version">v3.3.1</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1309,6 +1307,7 @@ let canvasScale = 1;
 function goToView(index, animate){
   index = Math.max(0, Math.min(VIEW_ORDER.length - 1, index));
   const track = document.getElementById("viewTrack");
+  const wasIndex = activeViewIndex;
   activeViewIndex = index;
 
   track.style.transition = animate ? "transform 0.25s ease" : "none";
@@ -1321,6 +1320,9 @@ function goToView(index, animate){
   const viewId = VIEW_ORDER[index];
   if(viewId === "viewConverter" && convRates === null){
     loadConverterRates();
+  }
+  if(wasIndex !== index){
+    requestAnimationFrame(fitAppCanvas);
   }
 }
 
@@ -1419,7 +1421,9 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
-function setHeaderHeightVar(){
+function setViewportHeight(){
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty("--vh", vh + "px");
   const header = document.getElementById("boardHeader");
   if(header){
     document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
@@ -1427,42 +1431,47 @@ function setHeaderHeightVar(){
 }
 
 function resetScrollPosition(){
-  const board = document.querySelector(".board");
-  if(board) board.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
+function fitAppCanvas(){
   const wrap = document.querySelector(".canvas-wrap");
-  if(wrap) wrap.scrollTop = 0;
+  const canvas = document.getElementById("appCanvas");
+  if(!wrap || !canvas) return;
+  canvas.style.transform = "none";
+  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
+  const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
+  if(!designWidth || !naturalHeight) return;
+  const scaleW = wrap.clientWidth / designWidth;
+  const scaleH = wrap.clientHeight / naturalHeight;
+  const scale = Math.min(scaleW, scaleH);
+  canvasScale = scale;
+  canvas.style.transform = `scale(${scale})`;
 }
 
 function refreshLayout(){
-  setHeaderHeightVar();
+  setViewportHeight();
   resetScrollPosition();
+  requestAnimationFrame(fitAppCanvas);
 }
 
-// Watch the body's real rendered size directly — as soon as iOS releases the
-// fake URL bar and the true height becomes available, this fires immediately.
-const ro = new ResizeObserver(()=>{
-  const actualHeight = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-  document.documentElement.style.setProperty("--vh", (actualHeight * 0.01) + "px");
-  setHeaderHeightVar();
-});
-window.addEventListener("DOMContentLoaded", ()=>{
-  ro.observe(document.body);
-});
+function delayedRefreshLayout(){
+  refreshLayout();
+  setTimeout(refreshLayout, 150);
+  setTimeout(refreshLayout, 400);
+  setTimeout(refreshLayout, 800);
+}
 
-// Cold-start nudge: a tiny scroll jiggle forces WebKit to repaint and settle
-// on the real viewport size instead of getting stuck on the transient one.
-window.addEventListener("load", ()=>{
-  setTimeout(()=>{
-    window.scrollTo(0, 1);
-    requestAnimationFrame(()=>{ window.scrollTo(0, 0); });
-  }, 200);
-});
-
+window.addEventListener("load", setViewportHeight);
 window.addEventListener("resize", refreshLayout);
-window.addEventListener("orientationchange", refreshLayout);
-window.addEventListener("pageshow", refreshLayout);
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", refreshLayout);
+  window.visualViewport.addEventListener("scroll", refreshLayout);
+}
+window.addEventListener("orientationchange", delayedRefreshLayout);
+window.addEventListener("pageshow", delayedRefreshLayout);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "visible") refreshLayout();
+  if(document.visibilityState === "visible") delayedRefreshLayout();
 });
 refreshLayout();
 
