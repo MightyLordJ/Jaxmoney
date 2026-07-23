@@ -505,7 +505,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.5</div>
+  <div class="board-version">v3.3.6</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1438,9 +1438,16 @@ function fitAppCanvas(){
                            // instead of measured, since measuring can itself be thrown off
                            // by a transform/reflow in progress.
   const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  if(!naturalHeight) return;
-  const scaleW = wrap.clientWidth / designWidth;
-  const scaleH = wrap.clientHeight / naturalHeight;
+  const wrapWidth = wrap.clientWidth;
+  const wrapHeight = wrap.clientHeight;
+
+  // Bail out entirely if the wrap hasn't actually been laid out yet — computing
+  // a scale from zero/garbage dimensions is worse than just skipping this frame
+  // and letting the next scheduled retry try again with real numbers.
+  if(!naturalHeight || wrapWidth < 100 || wrapHeight < 100) return;
+
+  const scaleW = wrapWidth / designWidth;
+  const scaleH = wrapHeight / naturalHeight;
   let scale = Math.min(scaleW, scaleH);
 
   // Defensive fallback: if the computed scale is implausibly small (or NaN), the
@@ -1449,6 +1456,9 @@ function fitAppCanvas(){
   if(scale < 0.3 || isNaN(scale)){
     scale = scaleW;
   }
+  // If even the width-only fallback is nonsensical, skip rather than apply it —
+  // this is what previously let scale collapse all the way to 0.
+  if(scale < 0.3 || isNaN(scale)) return;
 
   canvasScale = scale;
   canvas.style.transform = `scale(${scale})`;
