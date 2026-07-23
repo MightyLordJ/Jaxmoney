@@ -239,6 +239,10 @@
   }
   .chart-box{
     padding:12px 8px 4px;
+    min-height:160px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
   }
   svg{display:block;width:100%;height:auto;}
   .stats-row{
@@ -483,7 +487,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.2.0</div>
+    <div class="board-version">v3.2.1</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -542,7 +546,7 @@
         <div class="status-msg" id="chartStatus">載入歷史資料中...</div>
       </div>
 
-      <div class="stats-row" id="statsRow" style="display:none;">
+      <div class="stats-row" id="statsRow">
         <div class="stat"><div class="stat-label">最高</div><div class="stat-value" id="statHigh">—</div></div>
         <div class="stat"><div class="stat-label">最低</div><div class="stat-value" id="statLow">—</div></div>
         <div class="stat"><div class="stat-label">平均</div><div class="stat-value" id="statAvg">—</div></div>
@@ -782,7 +786,6 @@ async function loadHistory(){
   const chartBox = document.getElementById("chartBox");
   const statsRow = document.getElementById("statsRow");
   chartBox.innerHTML = `<div class="status-msg">載入歷史資料中...</div>`;
-  statsRow.style.display = "none";
 
   const r = RANGES.find(r=>r.key===state.range);
   const end = new Date();
@@ -841,7 +844,6 @@ function updateStats(entries){
   document.getElementById("statHigh").textContent = high.toFixed(decimalsFor(high));
   document.getElementById("statLow").textContent = low.toFixed(decimalsFor(low));
   document.getElementById("statAvg").textContent = avg.toFixed(decimalsFor(avg));
-  document.getElementById("statsRow").style.display = "flex";
 }
 
 function drawChart(entries){
@@ -1273,17 +1275,54 @@ function syncOperatorHighlight(){
   }
 }
 
+const VIEW_ORDER = ["viewConverter", "viewHistory"];
+
 function switchView(viewId){
-  document.querySelectorAll(".view-panel").forEach(el=>{
-    el.style.display = (el.id === viewId) ? "block" : "none";
-  });
+  const fromEl = VIEW_ORDER.map(id=>document.getElementById(id)).find(el=>el.style.display !== "none");
+  const toEl = document.getElementById(viewId);
+
   document.querySelectorAll(".page-dot").forEach(dot=>{
     dot.classList.toggle("active", dot.dataset.view === viewId);
   });
-  if(viewId === "viewConverter" && convRates === null){
-    loadConverterRates();
+
+  if(!fromEl || fromEl === toEl){
+    toEl.style.display = "block";
+    if(viewId === "viewConverter" && convRates === null) loadConverterRates();
+    requestAnimationFrame(fitAppCanvas);
+    return;
   }
-  requestAnimationFrame(fitAppCanvas);
+
+  const dir = VIEW_ORDER.indexOf(viewId) > VIEW_ORDER.indexOf(fromEl.id) ? 1 : -1;
+
+  fromEl.style.transition = "transform 0.18s ease, opacity 0.18s ease";
+  fromEl.style.transform = `translateX(${-dir * 30}px)`;
+  fromEl.style.opacity = "0";
+
+  setTimeout(()=>{
+    fromEl.style.display = "none";
+    fromEl.style.transition = "";
+    fromEl.style.transform = "";
+    fromEl.style.opacity = "";
+
+    toEl.style.transition = "none";
+    toEl.style.transform = `translateX(${dir * 30}px)`;
+    toEl.style.opacity = "0";
+    toEl.style.display = "block";
+    void toEl.offsetWidth; // force reflow before animating in
+
+    if(viewId === "viewConverter" && convRates === null) loadConverterRates();
+    requestAnimationFrame(fitAppCanvas);
+
+    toEl.style.transition = "transform 0.18s ease, opacity 0.18s ease";
+    toEl.style.transform = "translateX(0)";
+    toEl.style.opacity = "1";
+
+    setTimeout(()=>{
+      toEl.style.transition = "";
+      toEl.style.transform = "";
+      toEl.style.opacity = "";
+    }, 190);
+  }, 190);
 }
 
 document.querySelectorAll(".page-dot").forEach(dot=>{
