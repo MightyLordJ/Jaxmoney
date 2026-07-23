@@ -41,9 +41,22 @@
     -webkit-font-smoothing:antialiased;
   }
   html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
+  .board-header{
+    position:fixed;
+    top:0; left:0; right:0;
+    z-index:20;
+    padding: calc(10px + env(safe-area-inset-top)) 20px 8px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    background: var(--page-bg);
+    max-width:430px;
+    margin:0 auto;
+  }
   .canvas-wrap{
     position:fixed;
-    inset:0;
+    top: var(--header-height, 0px);
+    left:0; right:0; bottom:0;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -61,11 +74,19 @@
     width:100%;
     overflow:visible;
   }
-  .board-header{
-    padding: calc(10px + env(safe-area-inset-top)) 20px 4px;
+  .view-container{
+    width:100%;
+    overflow:hidden;
+    position:relative;
+  }
+  .view-track{
     display:flex;
-    align-items:baseline;
-    justify-content:space-between;
+    width:200%;
+  }
+  .view-panel{
+    width:50%;
+    flex:0 0 50%;
+    min-width:0;
   }
   .board-title{
     font-size:17px;
@@ -471,25 +492,27 @@
 </head>
 <body>
 
+<div class="board-header" id="boardHeader">
+  <div class="board-title-group">
+    <div class="board-title">JaxMoney</div>
+    <button class="refresh-btn" id="refreshBtn" title="重新整理匯率">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/>
+        <path d="M21 3v5h-5"/>
+        <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/>
+        <path d="M3 21v-5h5"/>
+      </svg>
+    </button>
+    <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
+  </div>
+  <div class="board-version">v3.3.0</div>
+</div>
+
 <div class="canvas-wrap">
 <div class="app-canvas" id="appCanvas">
 <div class="board">
-  <div class="board-header">
-    <div class="board-title-group">
-      <div class="board-title">JaxMoney</div>
-      <button class="refresh-btn" id="refreshBtn" title="重新整理匯率">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/>
-          <path d="M21 3v5h-5"/>
-          <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/>
-          <path d="M3 21v-5h5"/>
-        </svg>
-      </button>
-      <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
-    </div>
-    <div class="board-version">v3.2.1</div>
-  </div>
-
+  <div class="view-container">
+  <div class="view-track" id="viewTrack">
   <div class="view-panel" id="viewConverter">
     <div class="card">
       <div class="conv-rows" id="convRows"></div>
@@ -520,7 +543,7 @@
     </div>
   </div>
 
-  <div class="view-panel" id="viewHistory" style="display:none;">
+  <div class="view-panel" id="viewHistory">
     <div class="updated" id="updatedAt">載入中...</div>
 
     <div class="card">
@@ -552,6 +575,8 @@
         <div class="stat"><div class="stat-label">平均</div><div class="stat-value" id="statAvg">—</div></div>
       </div>
     </div>
+  </div>
+  </div>
   </div>
 </div>
 <div class="page-dots" id="pageDots">
@@ -1276,88 +1301,108 @@ function syncOperatorHighlight(){
 }
 
 const VIEW_ORDER = ["viewConverter", "viewHistory"];
+let activeViewIndex = 0;
+let canvasScale = 1;
 
-function switchView(viewId){
-  const fromEl = VIEW_ORDER.map(id=>document.getElementById(id)).find(el=>el.style.display !== "none");
-  const toEl = document.getElementById(viewId);
+function goToView(index, animate){
+  index = Math.max(0, Math.min(VIEW_ORDER.length - 1, index));
+  const track = document.getElementById("viewTrack");
+  const wasIndex = activeViewIndex;
+  activeViewIndex = index;
 
-  document.querySelectorAll(".page-dot").forEach(dot=>{
-    dot.classList.toggle("active", dot.dataset.view === viewId);
+  track.style.transition = animate ? "transform 0.25s ease" : "none";
+  track.style.transform = `translateX(${-index * 50}%)`;
+
+  document.querySelectorAll(".page-dot").forEach((dot,i)=>{
+    dot.classList.toggle("active", i === index);
   });
 
-  if(!fromEl || fromEl === toEl){
-    toEl.style.display = "block";
-    if(viewId === "viewConverter" && convRates === null) loadConverterRates();
-    requestAnimationFrame(fitAppCanvas);
-    return;
+  const viewId = VIEW_ORDER[index];
+  if(viewId === "viewConverter" && convRates === null){
+    loadConverterRates();
   }
-
-  const dir = VIEW_ORDER.indexOf(viewId) > VIEW_ORDER.indexOf(fromEl.id) ? 1 : -1;
-
-  fromEl.style.transition = "transform 0.18s ease, opacity 0.18s ease";
-  fromEl.style.transform = `translateX(${-dir * 30}px)`;
-  fromEl.style.opacity = "0";
-
-  setTimeout(()=>{
-    fromEl.style.display = "none";
-    fromEl.style.transition = "";
-    fromEl.style.transform = "";
-    fromEl.style.opacity = "";
-
-    toEl.style.transition = "none";
-    toEl.style.transform = `translateX(${dir * 30}px)`;
-    toEl.style.opacity = "0";
-    toEl.style.display = "block";
-    void toEl.offsetWidth; // force reflow before animating in
-
-    if(viewId === "viewConverter" && convRates === null) loadConverterRates();
+  if(wasIndex !== index){
     requestAnimationFrame(fitAppCanvas);
-
-    toEl.style.transition = "transform 0.18s ease, opacity 0.18s ease";
-    toEl.style.transform = "translateX(0)";
-    toEl.style.opacity = "1";
-
-    setTimeout(()=>{
-      toEl.style.transition = "";
-      toEl.style.transform = "";
-      toEl.style.opacity = "";
-    }, 190);
-  }, 190);
+  }
 }
 
-document.querySelectorAll(".page-dot").forEach(dot=>{
-  dot.addEventListener("click", ()=> switchView(dot.dataset.view));
+function switchView(viewId){
+  const idx = VIEW_ORDER.indexOf(viewId);
+  if(idx !== -1) goToView(idx, true);
+}
+
+document.querySelectorAll(".page-dot").forEach((dot,i)=>{
+  dot.addEventListener("click", ()=> goToView(i, true));
 });
 
 (function setupSwipeNav(){
   const wrap = document.querySelector(".canvas-wrap");
-  if(!wrap) return;
-  const VIEWS = ["viewConverter", "viewHistory"];
-  let startX = 0, startY = 0, tracking = false;
+  const track = document.getElementById("viewTrack");
+  const container = document.querySelector(".view-container");
+  if(!wrap || !track || !container) return;
+
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let baseOffsetPx = 0;
+  let currentDragPx = 0;
+  let axisLocked = null;
+
+  function containerWidthPx(){ return container.offsetWidth || 1; }
 
   wrap.addEventListener("touchstart", (e)=>{
+    dragging = true;
+    axisLocked = null;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
-    tracking = true;
+    baseOffsetPx = -activeViewIndex * containerWidthPx();
+    currentDragPx = baseOffsetPx;
+    track.style.transition = "none";
   }, {passive:true});
 
-  wrap.addEventListener("touchend", (e)=>{
-    if(!tracking) return;
-    tracking = false;
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = e.changedTouches[0].clientY - startY;
-    if(Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  wrap.addEventListener("touchmove", (e)=>{
+    if(!dragging) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
 
-    const activeId = VIEWS.find(id => document.getElementById(id).style.display !== "none");
-    const currentIndex = VIEWS.indexOf(activeId);
-    if(dx > 0){
-      // swipe right -> history
-      if(currentIndex < VIEWS.length - 1) switchView(VIEWS[currentIndex + 1]);
-    }else{
-      // swipe left -> converter
-      if(currentIndex > 0) switchView(VIEWS[currentIndex - 1]);
+    if(axisLocked === null){
+      if(Math.abs(dx) > 6 || Math.abs(dy) > 6){
+        axisLocked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
     }
-  });
+    if(axisLocked !== "x") return;
+
+    const scaledDx = dx / (canvasScale || 1);
+    let newOffset = baseOffsetPx + scaledDx;
+
+    const maxOffset = 0;
+    const minOffset = -(VIEW_ORDER.length - 1) * containerWidthPx();
+    if(newOffset > maxOffset) newOffset = maxOffset + (newOffset - maxOffset) * 0.3;
+    if(newOffset < minOffset) newOffset = minOffset + (newOffset - minOffset) * 0.3;
+
+    currentDragPx = newOffset;
+    track.style.transform = `translateX(${(newOffset / containerWidthPx()) * 50}%)`;
+    if(e.cancelable) e.preventDefault();
+  }, {passive:false});
+
+  function endDrag(){
+    if(!dragging) return;
+    dragging = false;
+    if(axisLocked !== "x"){ axisLocked = null; return; }
+    axisLocked = null;
+
+    const deltaFromBase = currentDragPx - baseOffsetPx;
+    const threshold = containerWidthPx() * 0.18;
+    let targetIndex = activeViewIndex;
+    if(deltaFromBase < -threshold && activeViewIndex < VIEW_ORDER.length - 1){
+      targetIndex = activeViewIndex + 1;
+    }else if(deltaFromBase > threshold && activeViewIndex > 0){
+      targetIndex = activeViewIndex - 1;
+    }
+    goToView(targetIndex, true);
+  }
+
+  wrap.addEventListener("touchend", endDrag);
+  wrap.addEventListener("touchcancel", endDrag);
 })();
 
 document.getElementById("pickerClose").addEventListener("click", closeCurrencyPicker);
@@ -1379,6 +1424,10 @@ document.querySelectorAll(".key").forEach(btn=>{
 function setViewportHeight(){
   const vh = window.innerHeight * 0.01;
   document.documentElement.style.setProperty("--vh", vh + "px");
+  const header = document.getElementById("boardHeader");
+  if(header){
+    document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
+  }
 }
 
 function resetScrollPosition(){
@@ -1391,11 +1440,12 @@ function fitAppCanvas(){
   if(!wrap || !canvas) return;
   canvas.style.transform = "none";
   const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
-  const naturalHeight = canvas.scrollHeight; // natural height of header + active view (tab-bar excluded)
+  const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
   if(!designWidth || !naturalHeight) return;
   const scaleW = wrap.clientWidth / designWidth;
   const scaleH = wrap.clientHeight / naturalHeight;
   const scale = Math.min(scaleW, scaleH);
+  canvasScale = scale;
   canvas.style.transform = `scale(${scale})`;
 }
 
@@ -1435,8 +1485,7 @@ document.getElementById("refreshBtn").addEventListener("click", ()=>{
 });
 
 async function doRefresh(){
-  const converterVisible = document.getElementById("viewConverter").style.display !== "none";
-  if(converterVisible){
+  if(VIEW_ORDER[activeViewIndex] === "viewConverter"){
     await loadConverterRates();
   }else{
     await Promise.all([loadLatest(), loadHistory()]);
