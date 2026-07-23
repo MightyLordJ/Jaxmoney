@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100dvh; }
+  html, body{ height:100%; height:-webkit-fill-available; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -40,7 +40,7 @@
     color: var(--text-primary);
     -webkit-font-smoothing:antialiased;
   }
-  html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
+  html, body{ overscroll-behavior: none; height: 100%; height: -webkit-fill-available; overflow: hidden; }
   .board-header{
     position:fixed;
     top:0; left:0; right:0;
@@ -505,7 +505,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.1</div>
+  <div class="board-version">v3.4.0</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1337,169 +1337,3 @@ document.querySelectorAll(".page-dot").forEach((dot,i)=>{
 
 (function setupSwipeNav(){
   const wrap = document.querySelector(".canvas-wrap");
-  const track = document.getElementById("viewTrack");
-  const container = document.querySelector(".view-container");
-  if(!wrap || !track || !container) return;
-
-  let dragging = false;
-  let startX = 0, startY = 0;
-  let baseOffsetPx = 0;
-  let currentDragPx = 0;
-  let axisLocked = null;
-
-  function containerWidthPx(){ return container.offsetWidth || 1; }
-
-  wrap.addEventListener("touchstart", (e)=>{
-    dragging = true;
-    axisLocked = null;
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    baseOffsetPx = -activeViewIndex * containerWidthPx();
-    currentDragPx = baseOffsetPx;
-    track.style.transition = "none";
-  }, {passive:true});
-
-  wrap.addEventListener("touchmove", (e)=>{
-    if(!dragging) return;
-    const dx = e.touches[0].clientX - startX;
-    const dy = e.touches[0].clientY - startY;
-
-    if(axisLocked === null){
-      if(Math.abs(dx) > 6 || Math.abs(dy) > 6){
-        axisLocked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-      }
-    }
-    if(axisLocked !== "x") return;
-
-    const scaledDx = dx / (canvasScale || 1);
-    let newOffset = baseOffsetPx + scaledDx;
-
-    const maxOffset = 0;
-    const minOffset = -(VIEW_ORDER.length - 1) * containerWidthPx();
-    if(newOffset > maxOffset) newOffset = maxOffset + (newOffset - maxOffset) * 0.3;
-    if(newOffset < minOffset) newOffset = minOffset + (newOffset - minOffset) * 0.3;
-
-    currentDragPx = newOffset;
-    track.style.transform = `translateX(${(newOffset / containerWidthPx()) * 50}%)`;
-    if(e.cancelable) e.preventDefault();
-  }, {passive:false});
-
-  function endDrag(){
-    if(!dragging) return;
-    dragging = false;
-    if(axisLocked !== "x"){ axisLocked = null; return; }
-    axisLocked = null;
-
-    const deltaFromBase = currentDragPx - baseOffsetPx;
-    const threshold = containerWidthPx() * 0.18;
-    let targetIndex = activeViewIndex;
-    if(deltaFromBase < -threshold && activeViewIndex < VIEW_ORDER.length - 1){
-      targetIndex = activeViewIndex + 1;
-    }else if(deltaFromBase > threshold && activeViewIndex > 0){
-      targetIndex = activeViewIndex - 1;
-    }
-    goToView(targetIndex, true);
-  }
-
-  wrap.addEventListener("touchend", endDrag);
-  wrap.addEventListener("touchcancel", endDrag);
-})();
-
-document.getElementById("pickerClose").addEventListener("click", closeCurrencyPicker);
-document.getElementById("pickerOverlay").addEventListener("click", (e)=>{
-  if(e.target.id === "pickerOverlay") closeCurrencyPicker();
-});
-
-document.querySelectorAll(".key").forEach(btn=>{
-  const pressOn = ()=> btn.classList.add("is-pressed");
-  const pressOff = ()=> btn.classList.remove("is-pressed");
-  btn.addEventListener("touchstart", pressOn, {passive:true});
-  btn.addEventListener("touchend", pressOff);
-  btn.addEventListener("touchcancel", pressOff);
-  btn.addEventListener("mousedown", pressOn);
-  btn.addEventListener("mouseup", pressOff);
-  btn.addEventListener("mouseleave", pressOff);
-});
-
-function setViewportHeight(){
-  const vh = window.innerHeight * 0.01;
-  document.documentElement.style.setProperty("--vh", vh + "px");
-  const header = document.getElementById("boardHeader");
-  if(header){
-    document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
-  }
-}
-
-function resetScrollPosition(){
-  window.scrollTo(0, 0);
-}
-
-function fitAppCanvas(){
-  const wrap = document.querySelector(".canvas-wrap");
-  const canvas = document.getElementById("appCanvas");
-  if(!wrap || !canvas) return;
-  canvas.style.transform = "none";
-  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
-  const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  if(!designWidth || !naturalHeight) return;
-  const scaleW = wrap.clientWidth / designWidth;
-  const scaleH = wrap.clientHeight / naturalHeight;
-  const scale = Math.min(scaleW, scaleH);
-  canvasScale = scale;
-  canvas.style.transform = `scale(${scale})`;
-}
-
-function refreshLayout(){
-  setViewportHeight();
-  resetScrollPosition();
-  requestAnimationFrame(fitAppCanvas);
-}
-
-function delayedRefreshLayout(){
-  refreshLayout();
-  setTimeout(refreshLayout, 150);
-  setTimeout(refreshLayout, 400);
-  setTimeout(refreshLayout, 800);
-}
-
-window.addEventListener("load", setViewportHeight);
-window.addEventListener("resize", refreshLayout);
-if(window.visualViewport){
-  window.visualViewport.addEventListener("resize", refreshLayout);
-  window.visualViewport.addEventListener("scroll", refreshLayout);
-}
-window.addEventListener("orientationchange", delayedRefreshLayout);
-window.addEventListener("pageshow", delayedRefreshLayout);
-document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "visible") delayedRefreshLayout();
-});
-refreshLayout();
-
-document.getElementById("refreshBtn").addEventListener("click", ()=>{
-  const btn = document.getElementById("refreshBtn");
-  btn.classList.add("spinning");
-  refreshLayout();
-  doRefresh().finally(()=>{
-    setTimeout(()=>btn.classList.remove("spinning"), 300);
-  });
-});
-
-async function doRefresh(){
-  if(VIEW_ORDER[activeViewIndex] === "viewConverter"){
-    await loadConverterRates();
-  }else{
-    await Promise.all([loadLatest(), loadHistory()]);
-  }
-}
-
-populateSelects();
-renderQuickRow();
-renderRangeTabs();
-renderConvRows();
-refreshAll();
-loadConverterRates();
-updateDiscountModeUI();
-</script>
-
-</body>
-</html>
