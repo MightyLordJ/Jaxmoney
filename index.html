@@ -277,12 +277,6 @@
   .stat{ text-align:center; }
   .stat-label{color:var(--text-secondary); font-size:11px; font-weight:500;}
   .stat-value{color:var(--text-primary); font-size:15px; font-weight:600; margin-top:2px; font-variant-numeric: tabular-nums;}
-  .footnote{
-    text-align:center;
-    font-size:12px;
-    color:var(--text-secondary);
-    padding:0 20px 8px;
-  }
   .status-msg{
     font-size:13px;
     color:var(--text-secondary);
@@ -356,8 +350,6 @@
     white-space:nowrap;
   }
   .conv-row.active .conv-value{ color:#fff; }
-  @keyframes tapFlash{ 0%{ opacity:0.35; } 100%{ opacity:1; } }
-  .conv-value.flash{ animation: tapFlash 0.18s ease-out; }
   .picker-overlay{
     position:fixed; inset:0;
     background: rgba(0,0,0,0.5);
@@ -505,7 +497,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.1</div>
+  <div class="board-version">v3.3.2</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1459,7 +1451,6 @@ function delayedRefreshLayout(){
   refreshLayout();
   setTimeout(refreshLayout, 150);
   setTimeout(refreshLayout, 400);
-  setTimeout(refreshLayout, 800);
 }
 
 window.addEventListener("load", setViewportHeight);
