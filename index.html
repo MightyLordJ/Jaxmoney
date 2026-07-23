@@ -31,7 +31,7 @@
   }
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
-  button, select, .key, .conv-row, .quick-btn, .range-tab, .tab-item{ touch-action: manipulation; }
+  button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
   html, body{ height:100%; height:100dvh; }
   body{
     margin:0;
@@ -43,8 +43,7 @@
   html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
   .canvas-wrap{
     position:fixed;
-    top:0; left:0; right:0;
-    bottom: var(--tabbar-height, 0px);
+    inset:0;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -265,39 +264,19 @@
     text-align:center;
     padding:28px 20px;
   }
-  .tab-bar{
-    position:fixed;
-    bottom:0; left:0; right:0;
-    width:100%;
-    max-width:430px;
-    margin:0 auto;
+  .page-dots{
     display:flex;
     justify-content:center;
-    gap:0;
-    background: #1C1C1E;
-    border-top:1px solid var(--separator);
-    padding: 5px 0 calc(5px + env(safe-area-inset-bottom));
-    z-index:10;
+    gap:8px;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
   }
-  .tab-item{
-    width:100%;
-    max-width:215px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:1px;
-    background:transparent;
-    border:none;
-    color:var(--text-secondary);
-    font-family: var(--font);
-    font-size:10px;
-    font-weight:500;
-    padding:2px 0;
-    cursor:pointer;
+  .page-dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background: var(--gray-fill-2);
   }
-  .tab-icon{ width:20px; height:20px; display:flex; align-items:center; justify-content:center; }
-  .tab-icon svg{ width:100%; height:100%; }
-  .tab-item.active{ color:#5E5CE6; }
+  .page-dot.active{ background:#5E5CE6; }
 
   /* Converter */
   .conv-rows{ padding:6px; }
@@ -504,7 +483,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.1.6</div>
+    <div class="board-version">v3.2.0</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -571,39 +550,11 @@
     </div>
   </div>
 </div>
+<div class="page-dots" id="pageDots">
+  <span class="page-dot active" data-view="viewConverter"></span>
+  <span class="page-dot" data-view="viewHistory"></span>
 </div>
 </div>
-
-<div class="tab-bar">
-  <button class="tab-item active" id="tabConverter" data-view="viewConverter">
-    <span class="tab-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4.5" y="2.5" width="15" height="19" rx="2.8"/>
-        <line x1="7.2" y1="6.3" x2="16.8" y2="6.3"/>
-        <circle cx="7.6" cy="11" r="0.9"/>
-        <circle cx="12" cy="11" r="0.9"/>
-        <circle cx="16.4" cy="11" r="0.9"/>
-        <circle cx="7.6" cy="14.8" r="0.9"/>
-        <circle cx="12" cy="14.8" r="0.9"/>
-        <circle cx="16.4" cy="14.8" r="0.9"/>
-        <circle cx="7.6" cy="18.6" r="0.9"/>
-        <circle cx="12" cy="18.6" r="0.9"/>
-        <circle cx="16.4" cy="18.6" r="0.9"/>
-      </svg>
-    </span>
-    <span>換匯計算機</span>
-  </button>
-  <button class="tab-item" id="tabHistory" data-view="viewHistory">
-    <span class="tab-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3.5 20.5 V3.5"/>
-        <path d="M3.5 20.5 H20.5"/>
-        <path d="M6.2 15.8 L10.3 10.6 L13.5 13.4 L18.6 6.6"/>
-        <path d="M14.3 6.6 H18.6 V11"/>
-      </svg>
-    </span>
-    <span>歷史匯率</span>
-  </button>
 </div>
 
 <div class="picker-overlay" id="pickerOverlay" style="display:none;">
@@ -1326,8 +1277,8 @@ function switchView(viewId){
   document.querySelectorAll(".view-panel").forEach(el=>{
     el.style.display = (el.id === viewId) ? "block" : "none";
   });
-  document.querySelectorAll(".tab-item").forEach(btn=>{
-    btn.classList.toggle("active", btn.dataset.view === viewId);
+  document.querySelectorAll(".page-dot").forEach(dot=>{
+    dot.classList.toggle("active", dot.dataset.view === viewId);
   });
   if(viewId === "viewConverter" && convRates === null){
     loadConverterRates();
@@ -1335,9 +1286,40 @@ function switchView(viewId){
   requestAnimationFrame(fitAppCanvas);
 }
 
-document.querySelectorAll(".tab-item").forEach(btn=>{
-  btn.addEventListener("click", ()=> switchView(btn.dataset.view));
+document.querySelectorAll(".page-dot").forEach(dot=>{
+  dot.addEventListener("click", ()=> switchView(dot.dataset.view));
 });
+
+(function setupSwipeNav(){
+  const wrap = document.querySelector(".canvas-wrap");
+  if(!wrap) return;
+  const VIEWS = ["viewConverter", "viewHistory"];
+  let startX = 0, startY = 0, tracking = false;
+
+  wrap.addEventListener("touchstart", (e)=>{
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, {passive:true});
+
+  wrap.addEventListener("touchend", (e)=>{
+    if(!tracking) return;
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if(Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+    const activeId = VIEWS.find(id => document.getElementById(id).style.display !== "none");
+    const currentIndex = VIEWS.indexOf(activeId);
+    if(dx > 0){
+      // swipe right -> history
+      if(currentIndex < VIEWS.length - 1) switchView(VIEWS[currentIndex + 1]);
+    }else{
+      // swipe left -> converter
+      if(currentIndex > 0) switchView(VIEWS[currentIndex - 1]);
+    }
+  });
+})();
 
 document.getElementById("pickerClose").addEventListener("click", closeCurrencyPicker);
 document.getElementById("pickerOverlay").addEventListener("click", (e)=>{
@@ -1358,10 +1340,6 @@ document.querySelectorAll(".key").forEach(btn=>{
 function setViewportHeight(){
   const vh = window.innerHeight * 0.01;
   document.documentElement.style.setProperty("--vh", vh + "px");
-  const tabBar = document.querySelector(".tab-bar");
-  if(tabBar){
-    document.documentElement.style.setProperty("--tabbar-height", tabBar.offsetHeight + "px");
-  }
 }
 
 function resetScrollPosition(){
@@ -1382,22 +1360,10 @@ function fitAppCanvas(){
   canvas.style.transform = `scale(${scale})`;
 }
 
-function pinTabBarToBottom(){
-  const tabBar = document.querySelector(".tab-bar");
-  if(!tabBar) return;
-  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-  tabBar.style.bottom = "auto";
-  tabBar.style.top = Math.round(vh - tabBar.offsetHeight) + "px";
-}
-
 function refreshLayout(){
   setViewportHeight();
   resetScrollPosition();
-  pinTabBarToBottom();
-  requestAnimationFrame(()=>{
-    fitAppCanvas();
-    pinTabBarToBottom();
-  });
+  requestAnimationFrame(fitAppCanvas);
 }
 
 function delayedRefreshLayout(){
