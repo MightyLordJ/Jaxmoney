@@ -58,10 +58,12 @@
     top: var(--header-height, 0px);
     left:0; right:0; bottom:0;
     display:flex;
-    align-items:center;
+    align-items:flex-start;
     justify-content:center;
-    overflow:hidden;
-    touch-action:none;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:none;
   }
   .app-canvas{
     width:430px;
@@ -497,7 +499,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.4.0</div>
+  <div class="board-version">v3.4.1</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1457,18 +1459,11 @@ function resetScrollPosition(){
 }
 
 function fitAppCanvas(){
-  const wrap = document.querySelector(".canvas-wrap");
+  // Scaling temporarily disabled for testing — canvas renders at natural size,
+  // canvas-wrap scrolls if content is taller than the available space.
   const canvas = document.getElementById("appCanvas");
-  if(!wrap || !canvas) return;
-  canvas.style.transform = "none";
-  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
-  const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  if(!designWidth || !naturalHeight) return;
-  const scaleW = wrap.clientWidth / designWidth;
-  const scaleH = wrap.clientHeight / naturalHeight;
-  const scale = Math.min(scaleW, scaleH);
-  canvasScale = scale;
-  canvas.style.transform = `scale(${scale})`;
+  if(canvas) canvas.style.transform = "none";
+  canvasScale = 1;
 }
 
 function refreshLayout(){
