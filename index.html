@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100dvh; }
+  html, body{ height:100%; height:100svh; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -40,7 +40,7 @@
     color: var(--text-primary);
     -webkit-font-smoothing:antialiased;
   }
-  html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
+  html, body{ overscroll-behavior: none; height: 100%; height: 100svh; overflow: hidden; }
   .board-header{
     position:fixed;
     top:0; left:0; right:0;
@@ -505,7 +505,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.1</div>
+  <div class="board-version">v3.3.5</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1307,7 +1307,6 @@ let canvasScale = 1;
 function goToView(index, animate){
   index = Math.max(0, Math.min(VIEW_ORDER.length - 1, index));
   const track = document.getElementById("viewTrack");
-  const wasIndex = activeViewIndex;
   activeViewIndex = index;
 
   track.style.transition = animate ? "transform 0.25s ease" : "none";
@@ -1321,9 +1320,7 @@ function goToView(index, animate){
   if(viewId === "viewConverter" && convRates === null){
     loadConverterRates();
   }
-  if(wasIndex !== index){
-    requestAnimationFrame(fitAppCanvas);
-  }
+  requestAnimationFrame(fitAppCanvas);
 }
 
 function switchView(viewId){
@@ -1421,9 +1418,7 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
-function setViewportHeight(){
-  const vh = window.innerHeight * 0.01;
-  document.documentElement.style.setProperty("--vh", vh + "px");
+function setHeaderHeightVar(){
   const header = document.getElementById("boardHeader");
   if(header){
     document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
@@ -1439,41 +1434,71 @@ function fitAppCanvas(){
   const canvas = document.getElementById("appCanvas");
   if(!wrap || !canvas) return;
   canvas.style.transform = "none";
-  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
+  const designWidth = 430; // matches the fixed CSS width:430px on .app-canvas — hardcoded
+                           // instead of measured, since measuring can itself be thrown off
+                           // by a transform/reflow in progress.
   const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  if(!designWidth || !naturalHeight) return;
+  if(!naturalHeight) return;
   const scaleW = wrap.clientWidth / designWidth;
   const scaleH = wrap.clientHeight / naturalHeight;
-  const scale = Math.min(scaleW, scaleH);
+  let scale = Math.min(scaleW, scaleH);
+
+  // Defensive fallback: if the computed scale is implausibly small (or NaN), the
+  // height reading itself is almost certainly the untrustworthy one (a cold-start
+  // false-URL-bar misread) — fall back to width-only sizing rather than trusting it.
+  if(scale < 0.3 || isNaN(scale)){
+    scale = scaleW;
+  }
+
   canvasScale = scale;
   canvas.style.transform = `scale(${scale})`;
 }
 
 function refreshLayout(){
-  setViewportHeight();
+  setHeaderHeightVar();
   resetScrollPosition();
   requestAnimationFrame(fitAppCanvas);
 }
 
-function delayedRefreshLayout(){
-  refreshLayout();
-  setTimeout(refreshLayout, 150);
-  setTimeout(refreshLayout, 400);
-  setTimeout(refreshLayout, 800);
+// Aggressive retry schedule: catches the toolbar settling at almost any point
+// in the first ~2 seconds, rather than betting on one or two fixed delays.
+function aggressiveRefresh(){
+  const delays = [0, 60, 120, 200, 300, 450, 650, 900, 1200, 1600, 2000];
+  delays.forEach(ms => setTimeout(refreshLayout, ms));
 }
 
-window.addEventListener("load", setViewportHeight);
+// Watch the body's real rendered size directly — as soon as iOS releases the
+// fake URL bar and the true height becomes available, this fires immediately
+// and re-fits right away instead of waiting for the next scheduled retry.
+const ro = new ResizeObserver(()=>{
+  refreshLayout();
+});
+window.addEventListener("DOMContentLoaded", ()=>{
+  ro.observe(document.body);
+});
+
+// Cold-start nudge: a tiny scroll jiggle forces WebKit to repaint and settle
+// on the real viewport size sooner, then immediately re-fit afterward.
+window.addEventListener("load", ()=>{
+  setTimeout(()=>{
+    window.scrollTo(0, 1);
+    requestAnimationFrame(()=>{
+      window.scrollTo(0, 0);
+      refreshLayout();
+    });
+  }, 150);
+});
+
 window.addEventListener("resize", refreshLayout);
 if(window.visualViewport){
   window.visualViewport.addEventListener("resize", refreshLayout);
-  window.visualViewport.addEventListener("scroll", refreshLayout);
 }
-window.addEventListener("orientationchange", delayedRefreshLayout);
-window.addEventListener("pageshow", delayedRefreshLayout);
+window.addEventListener("orientationchange", aggressiveRefresh);
+window.addEventListener("pageshow", aggressiveRefresh);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "visible") delayedRefreshLayout();
+  if(document.visibilityState === "visible") aggressiveRefresh();
 });
-refreshLayout();
+aggressiveRefresh();
 
 document.getElementById("refreshBtn").addEventListener("click", ()=>{
   const btn = document.getElementById("refreshBtn");
