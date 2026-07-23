@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100dvh; height: calc(var(--vh, 1vh) * 100); }
+  html, body{ height:100%; height:100svh; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -58,12 +58,10 @@
     top: var(--header-height, 0px);
     left:0; right:0; bottom:0;
     display:flex;
-    align-items:flex-start;
+    align-items:center;
     justify-content:center;
-    overflow-y:auto;
-    overflow-x:hidden;
-    -webkit-overflow-scrolling:touch;
-    overscroll-behavior:none;
+    overflow:hidden;
+    touch-action:none;
   }
   .app-canvas{
     width:375px;
@@ -499,7 +497,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.4.5</div>
+  <div class="board-version">v3.5.0</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1415,39 +1413,7 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
-const HEIGHT_CACHE_KEY = "jaxmoney-known-height";
-
-function getStoredHeight(){
-  try{
-    const raw = localStorage.getItem(HEIGHT_CACHE_KEY);
-    if(!raw) return null;
-    const data = JSON.parse(raw);
-    if(data && data.width === window.innerWidth && typeof data.height === "number"){
-      return data.height;
-    }
-    return null;
-  }catch(e){ return null; }
-}
-
-function storeHeight(h){
-  try{
-    localStorage.setItem(HEIGHT_CACHE_KEY, JSON.stringify({ width: window.innerWidth, height: h }));
-  }catch(e){ /* storage unavailable, ignore */ }
-}
-
-function setViewportHeight(mode){
-  // mode: "stored" (safe default for the vulnerable first-paint moment),
-  //       "live" (trust the current reading but don't persist it yet),
-  //       "live-trusted" (trust AND persist — used once the reading has had time to settle)
-  let h;
-  if(mode === "stored"){
-    h = getStoredHeight() || window.innerHeight;
-  }else{
-    h = window.innerHeight;
-    if(mode === "live-trusted") storeHeight(h);
-  }
-  const vh = h * 0.01;
-  document.documentElement.style.setProperty("--vh", vh + "px");
+function setHeaderHeightVar(){
   const header = document.getElementById("boardHeader");
   if(header){
     document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
@@ -1459,41 +1425,35 @@ function resetScrollPosition(){
 }
 
 function fitAppCanvas(){
-  // Scaling temporarily disabled for testing — canvas renders at natural size,
-  // canvas-wrap scrolls if content is taller than the available space.
+  const wrap = document.querySelector(".canvas-wrap");
   const canvas = document.getElementById("appCanvas");
-  if(canvas) canvas.style.transform = "none";
-  canvasScale = 1;
+  if(!wrap || !canvas) return;
+  canvas.style.transform = "none";
+  const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:375px
+  const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
+  if(!designWidth || !naturalHeight) return;
+  const scaleW = wrap.clientWidth / designWidth;
+  const scaleH = wrap.clientHeight / naturalHeight;
+  const scale = Math.min(scaleW, scaleH);
+  canvasScale = scale;
+  canvas.style.transform = `scale(${scale})`;
 }
 
 function refreshLayout(){
-  setViewportHeight("live-trusted");
+  setHeaderHeightVar();
   resetScrollPosition();
   requestAnimationFrame(fitAppCanvas);
 }
 
 function delayedRefreshLayout(){
-  // immediately fall back to the last known-good height (safest bet right at resume/launch)
-  setViewportHeight("stored");
-  resetScrollPosition();
-  requestAnimationFrame(fitAppCanvas);
-
-  // then re-check with the live reading as it settles, trusting (and caching) it once stable
-  setTimeout(()=>{
-    setViewportHeight("live");
-    requestAnimationFrame(fitAppCanvas);
-  }, 150);
-  setTimeout(()=>{
-    setViewportHeight("live-trusted");
-    requestAnimationFrame(fitAppCanvas);
-  }, 400);
+  refreshLayout();
+  setTimeout(refreshLayout, 200);
 }
 
-window.addEventListener("load", ()=> setViewportHeight("live-trusted"));
+window.addEventListener("load", setHeaderHeightVar);
 window.addEventListener("resize", refreshLayout);
 if(window.visualViewport){
   window.visualViewport.addEventListener("resize", refreshLayout);
-  window.visualViewport.addEventListener("scroll", refreshLayout);
 }
 window.addEventListener("orientationchange", delayedRefreshLayout);
 window.addEventListener("pageshow", delayedRefreshLayout);
