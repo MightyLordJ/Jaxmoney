@@ -505,8 +505,9 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.6</div>
+  <div class="board-version">v3.3.7</div>
 </div>
+<div id="debugOverlay" style="position:fixed; top:calc(var(--header-height,60px) + 2px); left:4px; right:4px; z-index:999; font-family:monospace; font-size:10px; color:#0f0; background:rgba(0,0,0,0.75); padding:4px 6px; border-radius:6px; pointer-events:none; white-space:pre-line;">debug: waiting...</div>
 
 <div class="canvas-wrap">
 <div class="app-canvas" id="appCanvas">
@@ -1432,6 +1433,7 @@ function resetScrollPosition(){
 function fitAppCanvas(){
   const wrap = document.querySelector(".canvas-wrap");
   const canvas = document.getElementById("appCanvas");
+  const dbg = document.getElementById("debugOverlay");
   if(!wrap || !canvas) return;
   canvas.style.transform = "none";
   const designWidth = 430; // matches the fixed CSS width:430px on .app-canvas — hardcoded
@@ -1444,21 +1446,33 @@ function fitAppCanvas(){
   // Bail out entirely if the wrap hasn't actually been laid out yet — computing
   // a scale from zero/garbage dimensions is worse than just skipping this frame
   // and letting the next scheduled retry try again with real numbers.
-  if(!naturalHeight || wrapWidth < 100 || wrapHeight < 100) return;
+  if(!naturalHeight || wrapWidth < 100 || wrapHeight < 100){
+    if(dbg) dbg.textContent = `debug: SKIPPED (wrapW=${wrapWidth} wrapH=${wrapHeight} naturalH=${naturalHeight})\ninnerW=${window.innerWidth} innerH=${window.innerHeight} vv=${window.visualViewport?window.visualViewport.height:"n/a"}`;
+    return;
+  }
 
   const scaleW = wrapWidth / designWidth;
   const scaleH = wrapHeight / naturalHeight;
   let scale = Math.min(scaleW, scaleH);
+  let usedFallback = false;
 
   // Defensive fallback: if the computed scale is implausibly small (or NaN), the
   // height reading itself is almost certainly the untrustworthy one (a cold-start
   // false-URL-bar misread) — fall back to width-only sizing rather than trusting it.
   if(scale < 0.3 || isNaN(scale)){
     scale = scaleW;
+    usedFallback = true;
   }
   // If even the width-only fallback is nonsensical, skip rather than apply it —
   // this is what previously let scale collapse all the way to 0.
-  if(scale < 0.3 || isNaN(scale)) return;
+  if(scale < 0.3 || isNaN(scale)){
+    if(dbg) dbg.textContent = `debug: SKIPPED bad fallback (scaleW=${scaleW.toFixed(3)} scaleH=${scaleH.toFixed(3)})`;
+    return;
+  }
+
+  if(dbg){
+    dbg.textContent = `debug: wrapW=${wrapWidth} wrapH=${wrapHeight} naturalH=${naturalHeight}\nscaleW=${scaleW.toFixed(3)} scaleH=${scaleH.toFixed(3)} used=${usedFallback?"fallback":"min"} -> scale=${scale.toFixed(3)}\ninnerW=${window.innerWidth} innerH=${window.innerHeight} vv=${window.visualViewport?window.visualViewport.height:"n/a"}`;
+  }
 
   canvasScale = scale;
   canvas.style.transform = `scale(${scale})`;
