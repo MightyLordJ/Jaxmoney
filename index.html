@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100dvh; }
+  html, body{ height:100%; height:100dvh; height: calc(var(--vh, 1vh) * 100); }
   body{
     margin:0;
     background: var(--page-bg);
@@ -497,7 +497,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.2</div>
+  <div class="board-version">v3.4.0</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1413,8 +1413,38 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
-function setViewportHeight(){
-  const vh = window.innerHeight * 0.01;
+const HEIGHT_CACHE_KEY = "jaxmoney-known-height";
+
+function getStoredHeight(){
+  try{
+    const raw = localStorage.getItem(HEIGHT_CACHE_KEY);
+    if(!raw) return null;
+    const data = JSON.parse(raw);
+    if(data && data.width === window.innerWidth && typeof data.height === "number"){
+      return data.height;
+    }
+    return null;
+  }catch(e){ return null; }
+}
+
+function storeHeight(h){
+  try{
+    localStorage.setItem(HEIGHT_CACHE_KEY, JSON.stringify({ width: window.innerWidth, height: h }));
+  }catch(e){ /* storage unavailable, ignore */ }
+}
+
+function setViewportHeight(mode){
+  // mode: "stored" (safe default for the vulnerable first-paint moment),
+  //       "live" (trust the current reading but don't persist it yet),
+  //       "live-trusted" (trust AND persist — used once the reading has had time to settle)
+  let h;
+  if(mode === "stored"){
+    h = getStoredHeight() || window.innerHeight;
+  }else{
+    h = window.innerHeight;
+    if(mode === "live-trusted") storeHeight(h);
+  }
+  const vh = h * 0.01;
   document.documentElement.style.setProperty("--vh", vh + "px");
   const header = document.getElementById("boardHeader");
   if(header){
@@ -1442,18 +1472,29 @@ function fitAppCanvas(){
 }
 
 function refreshLayout(){
-  setViewportHeight();
+  setViewportHeight("live-trusted");
   resetScrollPosition();
   requestAnimationFrame(fitAppCanvas);
 }
 
 function delayedRefreshLayout(){
-  refreshLayout();
-  setTimeout(refreshLayout, 150);
-  setTimeout(refreshLayout, 400);
+  // immediately fall back to the last known-good height (safest bet right at resume/launch)
+  setViewportHeight("stored");
+  resetScrollPosition();
+  requestAnimationFrame(fitAppCanvas);
+
+  // then re-check with the live reading as it settles, trusting (and caching) it once stable
+  setTimeout(()=>{
+    setViewportHeight("live");
+    requestAnimationFrame(fitAppCanvas);
+  }, 150);
+  setTimeout(()=>{
+    setViewportHeight("live-trusted");
+    requestAnimationFrame(fitAppCanvas);
+  }, 400);
 }
 
-window.addEventListener("load", setViewportHeight);
+window.addEventListener("load", ()=> setViewportHeight("live-trusted"));
 window.addEventListener("resize", refreshLayout);
 if(window.visualViewport){
   window.visualViewport.addEventListener("resize", refreshLayout);
@@ -1464,7 +1505,7 @@ window.addEventListener("pageshow", delayedRefreshLayout);
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState === "visible") delayedRefreshLayout();
 });
-refreshLayout();
+delayedRefreshLayout();
 
 document.getElementById("refreshBtn").addEventListener("click", ()=>{
   const btn = document.getElementById("refreshBtn");
