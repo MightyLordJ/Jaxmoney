@@ -32,7 +32,7 @@
   *{box-sizing:border-box;}
   html{ touch-action: manipulation; }
   button, select, .key, .conv-row, .quick-btn, .range-tab{ touch-action: manipulation; }
-  html, body{ height:100%; height:100svh; height: calc(var(--vh, 1svh) * 100); }
+  html, body{ overflow:hidden; overscroll-behavior: none; }
   body{
     margin:0;
     background: var(--page-bg);
@@ -40,7 +40,6 @@
     color: var(--text-primary);
     -webkit-font-smoothing:antialiased;
   }
-  html, body{ overscroll-behavior: none; height: 100%; height: 100dvh; overflow: hidden; }
   .board-header{
     position:fixed;
     top:0; left:0; right:0;
@@ -497,7 +496,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.5.1</div>
+  <div class="board-version">v3.6.0</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1413,11 +1412,6 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
-function setViewportHeightVar(){
-  const h = (window.screen && window.screen.height) ? window.screen.height : window.innerHeight;
-  document.documentElement.style.setProperty("--vh", (h * 0.01) + "px");
-}
-
 function setHeaderHeightVar(){
   const header = document.getElementById("boardHeader");
   if(header){
@@ -1445,7 +1439,6 @@ function fitAppCanvas(){
 }
 
 function refreshLayout(){
-  setViewportHeightVar();
   setHeaderHeightVar();
   resetScrollPosition();
   requestAnimationFrame(fitAppCanvas);
