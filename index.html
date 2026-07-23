@@ -504,7 +504,7 @@
       </button>
       <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
     </div>
-    <div class="board-version">v3.1.5</div>
+    <div class="board-version">v3.1.6</div>
   </div>
 
   <div class="view-panel" id="viewConverter">
@@ -1382,10 +1382,22 @@ function fitAppCanvas(){
   canvas.style.transform = `scale(${scale})`;
 }
 
+function pinTabBarToBottom(){
+  const tabBar = document.querySelector(".tab-bar");
+  if(!tabBar) return;
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  tabBar.style.bottom = "auto";
+  tabBar.style.top = Math.round(vh - tabBar.offsetHeight) + "px";
+}
+
 function refreshLayout(){
   setViewportHeight();
   resetScrollPosition();
-  requestAnimationFrame(fitAppCanvas);
+  pinTabBarToBottom();
+  requestAnimationFrame(()=>{
+    fitAppCanvas();
+    pinTabBarToBottom();
+  });
 }
 
 function delayedRefreshLayout(){
