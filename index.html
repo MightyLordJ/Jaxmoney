@@ -533,7 +533,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.0</div>
+  <div class="board-version">v3.7.1</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1646,16 +1646,53 @@ function refreshLayout(){
   requestAnimationFrame(fitAppCanvas);
 }
 
+// Quiet-period stabilization: rather than guessing how long an animation (orientation
+// change, standalone-launch chrome transition, etc.) takes, wait until the viewport
+// stops changing for a short quiet window, then confirm the reading is stable across
+// two consecutive checks before trusting it and applying the real correction. This
+// replaces blind fixed-delay retries, which can misfire if one happens to land
+// mid-animation and nothing corrects it afterward.
+let stabilizeTimer = null;
+let stabilizeAttempts = 0;
+const QUIET_MS = 180;
+const STABLE_CHECK_MS = 120;
+const MAX_STABILIZE_ATTEMPTS = 8;
+
+function viewportKey(){
+  const wrap = document.querySelector(".canvas-wrap");
+  if(!wrap) return window.innerWidth + "x" + window.innerHeight;
+  return wrap.clientWidth + "x" + wrap.clientHeight;
+}
+
+function scheduleStableRefresh(){
+  if(stabilizeTimer) clearTimeout(stabilizeTimer);
+  stabilizeAttempts = 0;
+  stabilizeTimer = setTimeout(checkStable, QUIET_MS);
+}
+
+function checkStable(){
+  const before = viewportKey();
+  stabilizeTimer = setTimeout(()=>{
+    const after = viewportKey();
+    stabilizeAttempts++;
+    if(after === before || stabilizeAttempts >= MAX_STABILIZE_ATTEMPTS){
+      refreshLayout();
+    }else{
+      stabilizeTimer = setTimeout(checkStable, STABLE_CHECK_MS);
+    }
+  }, STABLE_CHECK_MS);
+}
+
 function delayedRefreshLayout(){
-  refreshLayout();
-  [80, 160, 300, 500, 800, 1200, 1800].forEach(ms => setTimeout(refreshLayout, ms));
+  refreshLayout();          // immediate best-effort paint, so the screen isn't blank
+  scheduleStableRefresh();  // guaranteed follow-up once things actually settle
 }
 
 window.addEventListener("load", delayedRefreshLayout);
-window.addEventListener("resize", refreshLayout);
+window.addEventListener("resize", scheduleStableRefresh);
 if(window.visualViewport){
-  window.visualViewport.addEventListener("resize", refreshLayout);
-  window.visualViewport.addEventListener("scroll", refreshLayout);
+  window.visualViewport.addEventListener("resize", scheduleStableRefresh);
+  window.visualViewport.addEventListener("scroll", scheduleStableRefresh);
 }
 window.addEventListener("orientationchange", delayedRefreshLayout);
 window.addEventListener("pageshow", delayedRefreshLayout);
