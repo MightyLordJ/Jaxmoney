@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>JaxMoney</title>
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="JaxMoney">
@@ -62,32 +62,6 @@
     justify-content:center;
     overflow:hidden;
     touch-action:none;
-  }
-  .splash-screen{
-    position:fixed;
-    inset:0;
-    background:var(--page-bg);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index:9999;
-    transition:opacity 0.35s ease;
-  }
-  .splash-screen.splash-hide{
-    opacity:0;
-    pointer-events:none;
-  }
-  .splash-logo{
-    width:96px;
-    height:96px;
-    border-radius:22px;
-    overflow:hidden;
-    box-shadow:0 8px 30px rgba(0,0,0,0.4);
-  }
-  .splash-logo img{
-    width:100%;
-    height:100%;
-    display:block;
   }
   .app-canvas{
     width:430px;
@@ -559,11 +533,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.8.0</div>
-</div>
-
-<div class="splash-screen" id="splashScreen">
-  <div class="splash-logo"><img src="apple-touch-icon.png" alt=""></div>
+  <div class="board-version">v3.7.0</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1719,18 +1689,6 @@ refreshAll();
 loadConverterRates();
 updateDiscountModeUI();
 setupCanvasResizeObserver();
-
-// Splash screen: the logo itself never needs precise scaling (it's not interactive
-// and isn't laid out via the design-canvas transform), so showing it costs nothing
-// visually. Holding it for a fixed minimum time pushes the *first real* fitAppCanvas
-// calibration past the risky window right after standalone-app launch, when iOS's
-// internal chrome-transition animation is most likely to still be settling.
-const SPLASH_MIN_MS = 700;
-setTimeout(()=>{
-  fitAppCanvas();
-  const splash = document.getElementById("splashScreen");
-  if(splash) splash.classList.add("splash-hide");
-}, SPLASH_MIN_MS);
 </script>
 
 </body>
