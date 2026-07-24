@@ -533,7 +533,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.3</div>
+  <div class="board-version">v3.7.1</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1495,7 +1495,7 @@ function goToView(index, animate){
     loadConverterRates();
   }
   if(wasIndex !== index){
-    requestAnimationFrame(()=>fitAppCanvas());
+    requestAnimationFrame(fitAppCanvas);
   }
 }
 
@@ -1607,75 +1607,23 @@ function resetScrollPosition(){
   window.scrollTo(0, 0);
 }
 
-const SCALE_CACHE_KEY = "jaxmoney-max-scale";
-
-function currentOrientationKey(){
-  return (window.innerWidth <= window.innerHeight) ? "portrait" : "landscape";
-}
-
-function loadMaxScale(orientationKey){
-  try{
-    const raw = localStorage.getItem(SCALE_CACHE_KEY);
-    if(!raw) return null;
-    const data = JSON.parse(raw);
-    return (data && typeof data[orientationKey] === "number") ? data[orientationKey] : null;
-  }catch(e){ return null; }
-}
-
-function saveMaxScale(orientationKey, scale){
-  try{
-    const raw = localStorage.getItem(SCALE_CACHE_KEY);
-    const data = raw ? JSON.parse(raw) : {};
-    data[orientationKey] = scale;
-    localStorage.setItem(SCALE_CACHE_KEY, JSON.stringify(data));
-  }catch(e){}
-}
-
-// The height-measurement bug we've been chasing has usually shown up as shrinking the
-// layout below correct, so a larger scale is normally the safer guess for a quick,
-// unconfirmed reading. But it turns out smaller isn't always wrong: Safari can
-// legitimately still be showing its own chrome, genuinely leaving less room than the
-// historical max — forcing the max in that case overflows the visible area and gets
-// clipped. So: unconfirmed calls (trusted=false, the default) still ratchet upward only,
-// to avoid flashing an obviously-bad small value; but a *confirmed* stable reading
-// (trusted=true — two consecutive matching measurements from the quiet-period check)
-// is treated as ground truth and applied as-is, in either direction, and becomes the
-// new remembered value for this orientation.
-function fitAppCanvas(trusted){
+function fitAppCanvas(){
   const wrap = document.querySelector(".canvas-wrap");
   const canvas = document.getElementById("appCanvas");
   if(!wrap || !canvas) return;
-  const orientationKey = currentOrientationKey();
-  const cachedMax = loadMaxScale(orientationKey);
-
   canvas.style.transform = "none";
   const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
   const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  if(!designWidth || !naturalHeight){
-    if(cachedMax != null){
-      canvasScale = cachedMax;
-      canvas.style.transform = `scale(${cachedMax})`;
-    }
-    return;
-  }
+  if(!designWidth || !naturalHeight) return;
   const scaleW = wrap.clientWidth / designWidth;
   const scaleH = wrap.clientHeight / naturalHeight;
-  const measured = Math.min(scaleW, scaleH);
-
-  let scale;
-  if(trusted || cachedMax == null || measured >= cachedMax){
-    scale = measured;
-    saveMaxScale(orientationKey, measured);
-  }else{
-    scale = cachedMax;
-  }
-
+  const scale = Math.min(scaleW, scaleH);
   canvasScale = scale;
   canvas.style.transform = `scale(${scale})`;
 }
 
-// The quiet-period stabilization above only guards against iOS's transient window-height
-// glitch on launch/resume/rotation. It can't know when slow-loading content (e.g. exchange-rate API calls
+// Fixed-time retries above only guard against iOS's transient window-height glitch on
+// launch/resume. They can't know when slow-loading content (e.g. exchange-rate API calls
 // arriving after the retry window closes) finishes changing the canvas's natural height.
 // A ResizeObserver catches that case directly, whenever it actually happens, regardless of
 // how long the load took. CSS transforms don't affect the box ResizeObserver measures, so
@@ -1686,16 +1634,16 @@ function setupCanvasResizeObserver(){
   const wrap = document.querySelector(".canvas-wrap");
   if(!canvas || !wrap) return;
   const observer = new ResizeObserver(()=>{
-    requestAnimationFrame(()=>fitAppCanvas());
+    requestAnimationFrame(fitAppCanvas);
   });
   observer.observe(canvas);
   observer.observe(wrap);
 }
 
-function refreshLayout(trusted){
+function refreshLayout(){
   setViewportHeight();
   resetScrollPosition();
-  requestAnimationFrame(()=>fitAppCanvas(trusted));
+  requestAnimationFrame(fitAppCanvas);
 }
 
 // Quiet-period stabilization: rather than guessing how long an animation (orientation
@@ -1727,12 +1675,8 @@ function checkStable(){
   stabilizeTimer = setTimeout(()=>{
     const after = viewportKey();
     stabilizeAttempts++;
-    const confirmed = (after === before);
-    if(confirmed || stabilizeAttempts >= MAX_STABILIZE_ATTEMPTS){
-      // Only a genuinely confirmed match (two consecutive identical reads) counts as
-      // ground truth. If we're only here because we gave up after MAX_STABILIZE_ATTEMPTS,
-      // the reading is still unconfirmed — fall back to the safer ratchet-up-only path.
-      refreshLayout(confirmed);
+    if(after === before || stabilizeAttempts >= MAX_STABILIZE_ATTEMPTS){
+      refreshLayout();
     }else{
       stabilizeTimer = setTimeout(checkStable, STABLE_CHECK_MS);
     }
