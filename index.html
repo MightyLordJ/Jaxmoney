@@ -533,7 +533,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.2</div>
+  <div class="board-version">v3.7.3</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1495,7 +1495,7 @@ function goToView(index, animate){
     loadConverterRates();
   }
   if(wasIndex !== index){
-    requestAnimationFrame(fitAppCanvas);
+    requestAnimationFrame(()=>fitAppCanvas());
   }
 }
 
@@ -1631,18 +1631,17 @@ function saveMaxScale(orientationKey, scale){
   }catch(e){}
 }
 
-// The height-measurement bug we've been chasing has only ever been observed shrinking
-// the layout, never growing it past correct — so the largest scale ever confirmed for
-// a given orientation is, by construction, the best candidate for "actually correct."
-// We remember that max per orientation (portrait/landscape kept separate, since their
-// correct scales are naturally different) and apply it immediately on every call rather
-// than trusting a fresh measurement outright. A fresh reading only replaces it when
-// it's at least as large — a smaller reading is treated as a transient mis-measurement,
-// not evidence the correct scale actually shrank. This still lets a genuine layout
-// change (e.g. a future redesign that legitimately needs a smaller scale) take effect,
-// just not instantly — it would need to be the largest reading seen since the cache
-// was last cleared, which in practice means clearing localStorage after such a change.
-function fitAppCanvas(){
+// The height-measurement bug we've been chasing has usually shown up as shrinking the
+// layout below correct, so a larger scale is normally the safer guess for a quick,
+// unconfirmed reading. But it turns out smaller isn't always wrong: Safari can
+// legitimately still be showing its own chrome, genuinely leaving less room than the
+// historical max — forcing the max in that case overflows the visible area and gets
+// clipped. So: unconfirmed calls (trusted=false, the default) still ratchet upward only,
+// to avoid flashing an obviously-bad small value; but a *confirmed* stable reading
+// (trusted=true — two consecutive matching measurements from the quiet-period check)
+// is treated as ground truth and applied as-is, in either direction, and becomes the
+// new remembered value for this orientation.
+function fitAppCanvas(trusted){
   const wrap = document.querySelector(".canvas-wrap");
   const canvas = document.getElementById("appCanvas");
   if(!wrap || !canvas) return;
@@ -1664,7 +1663,7 @@ function fitAppCanvas(){
   const measured = Math.min(scaleW, scaleH);
 
   let scale;
-  if(cachedMax == null || measured >= cachedMax){
+  if(trusted || cachedMax == null || measured >= cachedMax){
     scale = measured;
     saveMaxScale(orientationKey, measured);
   }else{
@@ -1687,16 +1686,16 @@ function setupCanvasResizeObserver(){
   const wrap = document.querySelector(".canvas-wrap");
   if(!canvas || !wrap) return;
   const observer = new ResizeObserver(()=>{
-    requestAnimationFrame(fitAppCanvas);
+    requestAnimationFrame(()=>fitAppCanvas());
   });
   observer.observe(canvas);
   observer.observe(wrap);
 }
 
-function refreshLayout(){
+function refreshLayout(trusted){
   setViewportHeight();
   resetScrollPosition();
-  requestAnimationFrame(fitAppCanvas);
+  requestAnimationFrame(()=>fitAppCanvas(trusted));
 }
 
 // Quiet-period stabilization: rather than guessing how long an animation (orientation
@@ -1728,8 +1727,12 @@ function checkStable(){
   stabilizeTimer = setTimeout(()=>{
     const after = viewportKey();
     stabilizeAttempts++;
-    if(after === before || stabilizeAttempts >= MAX_STABILIZE_ATTEMPTS){
-      refreshLayout();
+    const confirmed = (after === before);
+    if(confirmed || stabilizeAttempts >= MAX_STABILIZE_ATTEMPTS){
+      // Only a genuinely confirmed match (two consecutive identical reads) counts as
+      // ground truth. If we're only here because we gave up after MAX_STABILIZE_ATTEMPTS,
+      // the reading is still unconfirmed — fall back to the safer ratchet-up-only path.
+      refreshLayout(confirmed);
     }else{
       stabilizeTimer = setTimeout(checkStable, STABLE_CHECK_MS);
     }
