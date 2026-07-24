@@ -264,8 +264,36 @@
     display:flex;
     flex-direction:column;
     justify-content:center;
+    position:relative;
   }
   svg{display:block;width:100%;height:auto;}
+  #historySvg{touch-action:none;}
+  .crosshair-label{
+    position:absolute;
+    top:6px;
+    left:0;
+    transform:translateX(-50%);
+    background:rgba(28,28,30,0.92);
+    border:1px solid var(--separator);
+    border-radius:8px;
+    padding:4px 9px;
+    text-align:center;
+    pointer-events:none;
+    white-space:nowrap;
+    box-shadow:0 2px 8px rgba(0,0,0,0.35);
+  }
+  .crosshair-date{
+    font-size:10px;
+    color:var(--text-secondary);
+    font-weight:500;
+  }
+  .crosshair-rate{
+    font-size:13px;
+    color:var(--text-primary);
+    font-weight:700;
+    font-variant-numeric: tabular-nums;
+    margin-top:1px;
+  }
   .stats-row{
     display:flex;
     justify-content:space-around;
@@ -505,7 +533,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.2</div>
+  <div class="board-version">v3.4.0</div>
 </div>
 
 <div class="canvas-wrap">
@@ -871,6 +899,8 @@ function updateStats(entries){
   document.getElementById("statAvg").textContent = avg.toFixed(decimalsFor(avg));
 }
 
+let chartState = null; // { entries, points, W, H, PAD, color }
+
 function drawChart(entries){
   const chartBox = document.getElementById("chartBox");
   const W = 380, H = 140, PAD = 8;
@@ -890,11 +920,13 @@ function drawChart(entries){
     return [x,y];
   });
 
+  chartState = { entries, points, W, H, PAD, color };
+
   const linePath = points.map((p,i)=>(i===0?"M":"L")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
   const areaPath = linePath + ` L${points[points.length-1][0].toFixed(1)},${H} L${points[0][0].toFixed(1)},${H} Z`;
 
   chartBox.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 ${W} ${H}" id="historySvg" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="${color}" stop-opacity="0.18"/>
@@ -903,8 +935,104 @@ function drawChart(entries){
       </defs>
       <path d="${areaPath}" fill="url(#areaFill)"/>
       <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <g id="crosshairGroup" style="display:none;">
+        <line id="crosshairLine" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--purple)" stroke-width="1" stroke-dasharray="3,3"/>
+        <circle id="crosshairDot" cx="0" cy="0" r="4" fill="var(--purple)" stroke="#F2F2F7" stroke-width="1.5"/>
+      </g>
     </svg>
+    <div class="crosshair-label" id="crosshairLabel" style="display:none;">
+      <div class="crosshair-date" id="crosshairDate"></div>
+      <div class="crosshair-rate" id="crosshairRate"></div>
+    </div>
   `;
+
+  setupChartCrosshair();
+}
+
+function chartIndexForX(localX){
+  const { entries, W, PAD } = chartState;
+  const clamped = Math.min(Math.max(localX, PAD), W - PAD);
+  const ratio = (clamped - PAD) / (W - PAD*2 || 1);
+  return Math.round(ratio * (entries.length - 1));
+}
+
+function showCrosshairAt(clientX){
+  if(!chartState) return;
+  const svg = document.getElementById("historySvg");
+  const chartBox = document.getElementById("chartBox");
+  if(!svg || !chartBox) return;
+  const rect = svg.getBoundingClientRect();
+  if(rect.width === 0) return;
+
+  const localX = (clientX - rect.left) * (chartState.W / rect.width);
+  const idx = chartIndexForX(localX);
+  const entry = chartState.entries[idx];
+  const [px, py] = chartState.points[idx];
+
+  const group = document.getElementById("crosshairGroup");
+  const line = document.getElementById("crosshairLine");
+  const dot = document.getElementById("crosshairDot");
+  line.setAttribute("x1", px.toFixed(1));
+  line.setAttribute("x2", px.toFixed(1));
+  dot.setAttribute("cx", px.toFixed(1));
+  dot.setAttribute("cy", py.toFixed(1));
+  group.style.display = "block";
+
+  const label = document.getElementById("crosshairLabel");
+  document.getElementById("crosshairDate").textContent = entry.date;
+  document.getElementById("crosshairRate").textContent = `${entry.rate.toFixed(decimalsFor(entry.rate))} ${state.to}`;
+  label.style.display = "block";
+
+  const boxWidth = chartBox.clientWidth || 1;
+  const targetLeftPx = (px / chartState.W) * boxWidth;
+  const halfLabel = (label.offsetWidth || 0) / 2;
+  const clampedLeftPx = Math.min(Math.max(targetLeftPx, halfLabel + 2), boxWidth - halfLabel - 2);
+  label.style.left = clampedLeftPx + "px";
+}
+
+function hideCrosshair(){
+  const group = document.getElementById("crosshairGroup");
+  const label = document.getElementById("crosshairLabel");
+  if(group) group.style.display = "none";
+  if(label) label.style.display = "none";
+}
+
+function setupChartCrosshair(){
+  const svg = document.getElementById("historySvg");
+  if(!svg) return;
+  let activePointerId = null;
+
+  ["touchstart","touchmove","touchend","touchcancel"].forEach(type=>{
+    svg.addEventListener(type, (e)=> e.stopPropagation(), {passive:false});
+  });
+
+  svg.addEventListener("pointerdown", (e)=>{
+    activePointerId = e.pointerId;
+    svg.setPointerCapture(e.pointerId);
+    showCrosshairAt(e.clientX);
+    e.stopPropagation();
+  });
+
+  svg.addEventListener("pointermove", (e)=>{
+    if(activePointerId === null || e.pointerId !== activePointerId) return;
+    showCrosshairAt(e.clientX);
+    e.stopPropagation();
+    if(e.cancelable) e.preventDefault();
+  });
+
+  function release(e){
+    if(activePointerId === null) return;
+    activePointerId = null;
+    hideCrosshair();
+    e.stopPropagation();
+  }
+
+  svg.addEventListener("pointerup", release);
+  svg.addEventListener("pointercancel", release);
+  svg.addEventListener("pointerleave", (e)=>{
+    if(activePointerId === null) return;
+    // keep showing while pointer is captured/dragging past the edge
+  });
 }
 
 function refreshAll(){
@@ -1034,20 +1162,33 @@ function closeCurrencyPicker(){
   pickerTargetIdx = null;
 }
 
-function formatMoney(n){
+const CURRENCY_DECIMALS = {
+  TWD:0, JPY:0, KRW:0, VND:0, ISK:0, HUF:0, IDR:0
+  // any currency not listed here defaults to 2 decimal places
+};
+
+function currencyDecimals(code){
+  return Object.prototype.hasOwnProperty.call(CURRENCY_DECIMALS, code) ? CURRENCY_DECIMALS[code] : 2;
+}
+
+function roundToCurrency(n, code){
+  const d = currencyDecimals(code);
+  const factor = Math.pow(10, d);
+  return Math.round((n + Number.EPSILON) * factor) / factor;
+}
+
+function formatMoney(n, code){
   if(!isFinite(n)) return "0";
-  const abs = Math.abs(n);
-  let digits = 0;
-  if(abs < 1) digits = 4;
-  else if(abs < 100) digits = 2;
-  else digits = 0;
-  return n.toLocaleString("en-US", { minimumFractionDigits:0, maximumFractionDigits: digits });
+  const d = currencyDecimals(code);
+  const rounded = roundToCurrency(n, code);
+  return rounded.toLocaleString("en-US", { minimumFractionDigits:0, maximumFractionDigits: d });
 }
 
 function convertAmount(amount, fromCode, toCode){
   if(!convRates) return null;
   const twd = fromCode === "TWD" ? amount : amount / convRates[fromCode];
-  return toCode === "TWD" ? twd : twd * convRates[toCode];
+  const result = toCode === "TWD" ? twd : twd * convRates[toCode];
+  return roundToCurrency(result, toCode);
 }
 
 const OP_SYMBOLS = { "+":"+", "-":"−", "*":"×", "/":"÷" };
@@ -1062,7 +1203,7 @@ function updateConvValues(){
       el.textContent = activeText;
     }else{
       const result = convertAmount(activeAmount, convActive, code);
-      el.textContent = result == null ? "—" : formatMoney(result);
+      el.textContent = result == null ? "—" : formatMoney(result, code);
     }
   });
 }
@@ -1126,8 +1267,10 @@ function calcInputDigit(d){
 
 function formatCalcNumber(n){
   if(!isFinite(n)) return "0";
-  let s = n.toFixed(4).replace(/\.?0+$/, "");
-  return s === "" || s === "-" ? "0" : s;
+  const d = currencyDecimals(convActive);
+  let s = roundToCurrency(n, convActive).toFixed(d);
+  if(d > 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+  return (s === "" || s === "-") ? "0" : s;
 }
 
 function calcApplyOperator(op){
