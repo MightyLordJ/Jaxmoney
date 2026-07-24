@@ -954,8 +954,13 @@ function renderConvRows(){
   wrap.querySelectorAll(".conv-row").forEach(row=>{
     row.addEventListener("click", (e)=>{
       if(e.target.closest(".conv-code-btn")) return;
-      convActive = row.dataset.code;
-      calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"], discountActive:false, discountBase:0, discountDigits:"" };
+      const newCode = row.dataset.code;
+      if(newCode === convActive) return;
+      const activeAmount = parseFloat(calc.display) || 0;
+      const converted = convertAmount(activeAmount, convActive, newCode);
+      convActive = newCode;
+      const newDisplay = (converted == null || !isFinite(converted)) ? calc.display : formatCalcNumber(converted);
+      calc = { display:newDisplay, prevValue:null, operator:null, freshOperand:false, tokens:[newDisplay], discountActive:false, discountBase:0, discountDigits:"" };
       renderConvRows();
       updateConvValues();
     });
@@ -998,8 +1003,11 @@ function renderPickerList(filterText){
       }
       CONV_CURRENCIES[targetIdx] = newCode;
       saveConvCurrencies();
+      const activeAmount = parseFloat(calc.display) || 0;
+      const converted = convertAmount(activeAmount, convActive, newCode);
       convActive = newCode;
-      calc = { display:"0", prevValue:null, operator:null, freshOperand:false, tokens:["0"], discountActive:false, discountBase:0, discountDigits:"" };
+      const newDisplay = (converted == null || !isFinite(converted)) ? calc.display : formatCalcNumber(converted);
+      calc = { display:newDisplay, prevValue:null, operator:null, freshOperand:false, tokens:[newDisplay], discountActive:false, discountBase:0, discountDigits:"" };
       closeCurrencyPicker();
       renderConvRows();
       loadConverterRates();
