@@ -533,7 +533,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.3.3</div>
+  <div class="board-version">v3.7.0</div>
 </div>
 
 <div class="canvas-wrap">
@@ -810,8 +810,21 @@ async function loadLatest(){
   const label = document.getElementById("rateLabel");
   const number = document.getElementById("rateNumber");
   label.textContent = `1 ${state.from} =`;
-  number.textContent = "— — —";
   const cacheKey = `jaxmoney-rate-${state.from}-${state.to}`;
+
+  // Show cached value immediately (if we have one) so the screen never has to sit
+  // empty waiting on the network; the fetch below refreshes it in the background.
+  const cached = cacheGet(cacheKey);
+  const hasCached = !!(cached && cached.value);
+  if(hasCached){
+    const rate = cached.value.rate;
+    number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
+    document.getElementById("updatedAt").textContent = `離線・上次更新 ${formatCacheTime(cached.ts)}`;
+    setHeaderOfflineBadge(true, cached.value.date);
+  }else{
+    number.textContent = "— — —";
+  }
+
   try{
     const res = await fetch(`${API}/rate/${state.from}/${state.to}`);
     const data = await res.json();
@@ -822,29 +835,36 @@ async function loadLatest(){
     cacheSet(cacheKey, { rate, date: data.date });
     setHeaderOfflineBadge(false);
   }catch(e){
-    const cached = cacheGet(cacheKey);
-    if(cached && cached.value){
-      const rate = cached.value.rate;
-      number.textContent = `${rate.toFixed(decimalsFor(rate))} ${state.to}`;
-      document.getElementById("updatedAt").textContent = `離線・上次更新 ${formatCacheTime(cached.ts)}`;
-      setHeaderOfflineBadge(true, cached.value.date);
-    }else{
+    if(!hasCached){
       number.textContent = "讀取失敗";
       document.getElementById("updatedAt").textContent = "無法連線 (" + e.message + ")";
     }
+    // else: cached value shown above is left in place, offline badge already on
   }
 }
 
 async function loadHistory(){
   const chartBox = document.getElementById("chartBox");
   const statsRow = document.getElementById("statsRow");
-  chartBox.innerHTML = `<div class="status-msg">載入歷史資料中...</div>`;
 
   const r = RANGES.find(r=>r.key===state.range);
   const end = new Date();
   const start = new Date();
   start.setDate(start.getDate() - r.days);
   const cacheKey = `jaxmoney-hist-${state.from}-${state.to}-${state.range}`;
+
+  // Show cached history immediately (if we have one) so the chart never has to sit
+  // on a loading message waiting for the network; the fetch below refreshes it.
+  const cached = cacheGet(cacheKey);
+  const hasCached = !!(cached && Array.isArray(cached.value) && cached.value.length >= 2);
+  if(hasCached){
+    drawChart(cached.value);
+    updateStats(cached.value);
+    updateChange(cached.value);
+    setHeaderOfflineBadge(true, cached.value[cached.value.length-1].date);
+  }else{
+    chartBox.innerHTML = `<div class="status-msg">載入歷史資料中...</div>`;
+  }
 
   try{
     const res = await fetch(`${API}/rates?base=${state.from}&quotes=${state.to}&from=${fmtDate(start)}&to=${fmtDate(end)}`);
@@ -856,7 +876,7 @@ async function loadHistory(){
       .sort((a,b)=>a.date.localeCompare(b.date));
 
     if(entries.length < 2){
-      chartBox.innerHTML = `<div class="status-msg">此區間資料不足</div>`;
+      if(!hasCached) chartBox.innerHTML = `<div class="status-msg">此區間資料不足</div>`;
       return;
     }
 
@@ -866,15 +886,10 @@ async function loadHistory(){
     updateChange(entries);
     setHeaderOfflineBadge(false);
   }catch(e){
-    const cached = cacheGet(cacheKey);
-    if(cached && Array.isArray(cached.value) && cached.value.length >= 2){
-      drawChart(cached.value);
-      updateStats(cached.value);
-      updateChange(cached.value);
-      setHeaderOfflineBadge(true, cached.value[cached.value.length-1].date);
-    }else{
+    if(!hasCached){
       chartBox.innerHTML = `<div class="status-msg">無法載入歷史資料 (${e.message})</div>`;
     }
+    // else: cached chart shown above is left in place, offline badge already on
   }
 }
 
@@ -1211,6 +1226,19 @@ function updateConvValues(){
 async function loadConverterRates(){
   const quotes = CONV_CURRENCIES.filter(c=>c!=="TWD").join(",");
   const cacheKey = "jaxmoney-conv-rates";
+
+  // Show cached rates immediately (if they match the current 5 currencies) so the
+  // converter never has to wait on the network; the fetch below refreshes them.
+  const cached = cacheGet(cacheKey);
+  const sameSet = !!(cached && cached.value && Array.isArray(cached.value.currencies) &&
+    cached.value.currencies.length === CONV_CURRENCIES.length &&
+    cached.value.currencies.every((c,i)=>c===CONV_CURRENCIES[i]));
+  if(sameSet){
+    convRates = cached.value.rates;
+    setHeaderOfflineBadge(true, cached.value.date);
+    updateConvValues();
+  }
+
   try{
     const res = await fetch(`${API}/rates?base=TWD&quotes=${quotes}`);
     const data = await res.json();
@@ -1223,17 +1251,11 @@ async function loadConverterRates(){
     setHeaderOfflineBadge(false);
     updateConvValues();
   }catch(e){
-    const cached = cacheGet(cacheKey);
-    const sameSet = cached && cached.value && Array.isArray(cached.value.currencies) &&
-      cached.value.currencies.length === CONV_CURRENCIES.length &&
-      cached.value.currencies.every((c,i)=>c===CONV_CURRENCIES[i]);
-    if(sameSet){
-      convRates = cached.value.rates;
-      setHeaderOfflineBadge(true, cached.value.date);
-    }else{
+    if(!sameSet){
       convRates = null;
+      updateConvValues();
     }
-    updateConvValues();
+    // else: cached rates shown above are left in place, offline badge already on
   }
 }
 
@@ -1600,6 +1622,24 @@ function fitAppCanvas(){
   canvas.style.transform = `scale(${scale})`;
 }
 
+// Fixed-time retries above only guard against iOS's transient window-height glitch on
+// launch/resume. They can't know when slow-loading content (e.g. exchange-rate API calls
+// arriving after the retry window closes) finishes changing the canvas's natural height.
+// A ResizeObserver catches that case directly, whenever it actually happens, regardless of
+// how long the load took. CSS transforms don't affect the box ResizeObserver measures, so
+// this does not loop with fitAppCanvas's own transform toggling.
+function setupCanvasResizeObserver(){
+  if(typeof ResizeObserver === "undefined") return;
+  const canvas = document.getElementById("appCanvas");
+  const wrap = document.querySelector(".canvas-wrap");
+  if(!canvas || !wrap) return;
+  const observer = new ResizeObserver(()=>{
+    requestAnimationFrame(fitAppCanvas);
+  });
+  observer.observe(canvas);
+  observer.observe(wrap);
+}
+
 function refreshLayout(){
   setViewportHeight();
   resetScrollPosition();
@@ -1648,6 +1688,7 @@ renderConvRows();
 refreshAll();
 loadConverterRates();
 updateDiscountModeUI();
+setupCanvasResizeObserver();
 </script>
 
 </body>
