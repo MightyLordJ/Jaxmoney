@@ -533,7 +533,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.1</div>
+  <div class="board-version">v3.7.2</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1607,23 +1607,76 @@ function resetScrollPosition(){
   window.scrollTo(0, 0);
 }
 
+const SCALE_CACHE_KEY = "jaxmoney-max-scale";
+
+function currentOrientationKey(){
+  return (window.innerWidth <= window.innerHeight) ? "portrait" : "landscape";
+}
+
+function loadMaxScale(orientationKey){
+  try{
+    const raw = localStorage.getItem(SCALE_CACHE_KEY);
+    if(!raw) return null;
+    const data = JSON.parse(raw);
+    return (data && typeof data[orientationKey] === "number") ? data[orientationKey] : null;
+  }catch(e){ return null; }
+}
+
+function saveMaxScale(orientationKey, scale){
+  try{
+    const raw = localStorage.getItem(SCALE_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : {};
+    data[orientationKey] = scale;
+    localStorage.setItem(SCALE_CACHE_KEY, JSON.stringify(data));
+  }catch(e){}
+}
+
+// The height-measurement bug we've been chasing has only ever been observed shrinking
+// the layout, never growing it past correct — so the largest scale ever confirmed for
+// a given orientation is, by construction, the best candidate for "actually correct."
+// We remember that max per orientation (portrait/landscape kept separate, since their
+// correct scales are naturally different) and apply it immediately on every call rather
+// than trusting a fresh measurement outright. A fresh reading only replaces it when
+// it's at least as large — a smaller reading is treated as a transient mis-measurement,
+// not evidence the correct scale actually shrank. This still lets a genuine layout
+// change (e.g. a future redesign that legitimately needs a smaller scale) take effect,
+// just not instantly — it would need to be the largest reading seen since the cache
+// was last cleared, which in practice means clearing localStorage after such a change.
 function fitAppCanvas(){
   const wrap = document.querySelector(".canvas-wrap");
   const canvas = document.getElementById("appCanvas");
   if(!wrap || !canvas) return;
+  const orientationKey = currentOrientationKey();
+  const cachedMax = loadMaxScale(orientationKey);
+
   canvas.style.transform = "none";
   const designWidth = canvas.offsetWidth;   // natural (unscaled) width, driven by CSS width:430px
   const naturalHeight = canvas.scrollHeight; // natural height of the view-track (tallest of the two views)
-  if(!designWidth || !naturalHeight) return;
+  if(!designWidth || !naturalHeight){
+    if(cachedMax != null){
+      canvasScale = cachedMax;
+      canvas.style.transform = `scale(${cachedMax})`;
+    }
+    return;
+  }
   const scaleW = wrap.clientWidth / designWidth;
   const scaleH = wrap.clientHeight / naturalHeight;
-  const scale = Math.min(scaleW, scaleH);
+  const measured = Math.min(scaleW, scaleH);
+
+  let scale;
+  if(cachedMax == null || measured >= cachedMax){
+    scale = measured;
+    saveMaxScale(orientationKey, measured);
+  }else{
+    scale = cachedMax;
+  }
+
   canvasScale = scale;
   canvas.style.transform = `scale(${scale})`;
 }
 
-// Fixed-time retries above only guard against iOS's transient window-height glitch on
-// launch/resume. They can't know when slow-loading content (e.g. exchange-rate API calls
+// The quiet-period stabilization above only guards against iOS's transient window-height
+// glitch on launch/resume/rotation. It can't know when slow-loading content (e.g. exchange-rate API calls
 // arriving after the retry window closes) finishes changing the canvas's natural height.
 // A ResizeObserver catches that case directly, whenever it actually happens, regardless of
 // how long the load took. CSS transforms don't affect the box ResizeObserver measures, so
