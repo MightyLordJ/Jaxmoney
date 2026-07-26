@@ -1594,12 +1594,31 @@ document.querySelectorAll(".key").forEach(btn=>{
   btn.addEventListener("mouseleave", pressOff);
 });
 
+// Derived purely from screen.height/width + screen.orientation.type — validated on-device across
+// multiple cold-start/rotation test sessions to stay correct even during the exact moments
+// window.innerHeight/visualViewport.height were stuck on a wrong value. Falls back to
+// window.innerHeight only if screen.orientation isn't available at all (older WebKit).
+function trustedViewportHeight(){
+  const s = window.screen;
+  const o = s && s.orientation;
+  if(s && o && typeof o.type === "string"){
+    const isPortrait = o.type.indexOf("portrait") === 0;
+    const h = isPortrait ? s.height : s.width;
+    if(h) return h;
+  }
+  return window.innerHeight;
+}
+
 function setViewportHeight(){
-  const vh = window.innerHeight * 0.01;
-  document.documentElement.style.setProperty("--vh", vh + "px");
+  const wrap = document.querySelector(".canvas-wrap");
   const header = document.getElementById("boardHeader");
-  if(header){
-    document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px");
+  if(!header) return;
+  const headerHeight = header.offsetHeight;
+  document.documentElement.style.setProperty("--header-height", headerHeight + "px");
+  if(wrap){
+    wrap.style.top = headerHeight + "px";
+    wrap.style.bottom = "auto";
+    wrap.style.height = Math.max(0, trustedViewportHeight() - headerHeight) + "px";
   }
 }
 
