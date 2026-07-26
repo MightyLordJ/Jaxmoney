@@ -107,8 +107,8 @@
 </div>
 
 <script>
-const STORAGE_KEY = "viewport_test_log_v1";
-const SESSION_KEY = "viewport_test_session_v1";
+const STORAGE_KEY = "viewport_test_log_v2";
+const SESSION_KEY = "viewport_test_session_v2";
 
 function loadLog(){
   try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }catch(e){ return []; }
@@ -146,7 +146,12 @@ function readState(){
     vvScale: vv ? vv.scale : null,
     headerH: header ? header.offsetHeight : null,
     wrapClientH: wrap ? wrap.clientHeight : null,
-    wrapRectH: wrap ? wrap.getBoundingClientRect().height : null
+    wrapRectH: wrap ? wrap.getBoundingClientRect().height : null,
+    // 硬體螢幕解析度,理論上不受工具列展開/收起、visualViewport 那個 bug 影響 —— 拿來當
+    // innerH/vvH 讀值「合不合理」的獨立對照基準,不是拿來取代測量本身。
+    screenH: window.screen ? window.screen.height : null,
+    screenW: window.screen ? window.screen.width : null,
+    screenOrient: (window.screen && window.screen.orientation) ? window.screen.orientation.type : null
   };
 }
 
@@ -160,7 +165,9 @@ function renderLive(state){
     ["visualViewport.scale", fmt(state.vvScale)],
     ["header.offsetHeight", fmt(state.headerH)],
     ["wrap.clientHeight", fmt(state.wrapClientH)],
-    ["wrap 實際渲染高度(getBoundingClientRect)", fmt(state.wrapRectH)]
+    ["wrap 實際渲染高度(getBoundingClientRect)", fmt(state.wrapRectH)],
+    ["screen.height / width", fmt(state.screenH) + " / " + fmt(state.screenW)],
+    ["screen.orientation.type", state.screenOrient || "-"]
   ];
   box.innerHTML = rows.map(r =>
     `<div class="row"><span class="label">${r[0]}</span><span class="val">${r[1]}</span></div>`
@@ -175,7 +182,7 @@ function renderLive(state){
 }
 
 function appendLog(eventName, state, tag){
-  const line = `[${state.t}] ${eventName} | vis=${state.vis} | innerH=${fmt(state.innerH)} vvH=${fmt(state.vvH)} vvTop=${fmt(state.vvTop)} headerH=${fmt(state.headerH)} wrapH=${fmt(state.wrapRectH)}`;
+  const line = `[${state.t}] ${eventName} | vis=${state.vis} | innerH=${fmt(state.innerH)} vvH=${fmt(state.vvH)} vvTop=${fmt(state.vvTop)} headerH=${fmt(state.headerH)} wrapH=${fmt(state.wrapRectH)} screenH=${fmt(state.screenH)} screenW=${fmt(state.screenW)} orient=${state.screenOrient || "-"}`;
   logData.push({line, tag: tag || ""});
   saveLog(logData);
   renderLogDom();
