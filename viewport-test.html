@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Viewport Test</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ViewportTest">
+<style>
+  :root{
+    --page-bg:#0A0E0C; --card-bg:#1C1C1E; --text-primary:#F2F2F7; --text-secondary:#98989D;
+    --purple:#5E5CE6; --green:#30D158; --red:#FF453A; --separator:#38383A;
+    --font:-apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{ height:100%; height:100dvh; margin:0; overscroll-behavior:none; overflow:hidden; }
+  body{ background:var(--page-bg); color:var(--text-primary); font-family:var(--font); -webkit-font-smoothing:antialiased; }
+
+  /* 這個測試頁刻意模仿正式版的 header(固定頂部)+ wrap(dvh + bottom:0)結構,
+     但不做任何量測後的修正邏輯 —— 只負責如實記錄每次事件當下的原始數字。 */
+  .header{
+    position:fixed; top:0; left:0; right:0; z-index:20;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 8px;
+    background:var(--page-bg); border-bottom:1px solid var(--separator);
+  }
+  .header h1{ font-size:15px; margin:0 0 2px; color:var(--purple); }
+  .header .sub{ font-size:11px; color:var(--text-secondary); }
+
+  .wrap{
+    position:fixed;
+    top: var(--header-height, 60px);
+    left:0; right:0; bottom:0;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .live-box{
+    flex:0 0 auto;
+    margin:10px 12px;
+    padding:10px 12px;
+    background:var(--card-bg);
+    border-radius:12px;
+    font-size:12px;
+    line-height:1.7;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-box .row{ display:flex; justify-content:space-between; gap:8px; }
+  .live-box .label{ color:var(--text-secondary); }
+  .live-box .val{ font-weight:600; }
+  .live-box .val.changed{ color:var(--purple); }
+
+  .bar-wrap{ flex:0 0 auto; margin:0 12px 10px; }
+  .bar-track{ height:24px; background:var(--card-bg); border-radius:6px; overflow:hidden; position:relative; }
+  .bar-fill{ height:100%; background:var(--purple); width:100%; transition:none; }
+  .bar-caption{ font-size:10px; color:var(--text-secondary); margin-top:4px; }
+
+  .btn-row{ flex:0 0 auto; display:flex; gap:8px; margin:0 12px 10px; }
+  button{
+    flex:1; font-family:var(--font); font-size:13px; font-weight:600;
+    padding:10px; border-radius:10px; border:none; cursor:pointer;
+  }
+  #btnCopy{ background:var(--purple); color:#fff; }
+  #btnClear{ background:var(--card-bg); color:var(--red); }
+
+  .log{
+    flex:1 1 auto;
+    margin:0 12px 12px;
+    background:var(--card-bg);
+    border-radius:12px;
+    overflow-y:auto;
+    padding:8px 10px;
+    font-size:11px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    line-height:1.6;
+    -webkit-overflow-scrolling: touch;
+  }
+  .log .entry{ white-space:pre-wrap; word-break:break-all; border-bottom:1px solid var(--separator); padding:4px 0; }
+  .log .entry.launch{ color:var(--green); font-weight:700; }
+  .log .entry.shrink{ color:var(--red); }
+  .log .entry.grow{ color:var(--purple); }
+</style>
+</head>
+<body>
+
+<div class="header" id="header">
+  <h1>Viewport 診斷測試頁</h1>
+  <div class="sub">不做任何修正,只記錄原始數值 — 用來確認冷啟動時真實發生的事件序列</div>
+</div>
+
+<div class="wrap" id="wrap">
+  <div class="live-box" id="liveBox">讀取中…</div>
+
+  <div class="bar-wrap">
+    <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+    <div class="bar-caption">目前 visualViewport.height 占螢幕高度比例(即時)</div>
+  </div>
+
+  <div class="btn-row">
+    <button id="btnCopy">複製記錄</button>
+    <button id="btnClear">清空記錄</button>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+const STORAGE_KEY = "viewport_test_log_v1";
+const SESSION_KEY = "viewport_test_session_v1";
+
+function loadLog(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }catch(e){ return []; }
+}
+function saveLog(log){
+  // 避免無限長,只留最新 500 筆
+  if(log.length > 500) log = log.slice(log.length - 500);
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(log)); }catch(e){}
+}
+
+let logData = loadLog();
+let lastVVHeight = null;
+let lastWrapHeight = null;
+
+function fmt(n){ return (n === null || n === undefined) ? "-" : Math.round(n * 100) / 100; }
+
+function nowStr(){
+  const d = new Date();
+  return d.toLocaleTimeString("zh-TW", {hour12:false}) + "." + String(d.getMilliseconds()).padStart(3,"0");
+}
+
+function readState(){
+  const header = document.getElementById("header");
+  const wrap = document.getElementById("wrap");
+  const vv = window.visualViewport;
+  return {
+    t: nowStr(),
+    ts: Date.now(),
+    vis: document.visibilityState,
+    innerH: window.innerHeight,
+    innerW: window.innerWidth,
+    vvH: vv ? vv.height : null,
+    vvW: vv ? vv.width : null,
+    vvTop: vv ? vv.offsetTop : null,
+    vvScale: vv ? vv.scale : null,
+    headerH: header ? header.offsetHeight : null,
+    wrapClientH: wrap ? wrap.clientHeight : null,
+    wrapRectH: wrap ? wrap.getBoundingClientRect().height : null
+  };
+}
+
+function renderLive(state){
+  const box = document.getElementById("liveBox");
+  const rows = [
+    ["事件狀態 visibilityState", state.vis],
+    ["window.innerHeight", fmt(state.innerH)],
+    ["visualViewport.height", fmt(state.vvH)],
+    ["visualViewport.offsetTop", fmt(state.vvTop)],
+    ["visualViewport.scale", fmt(state.vvScale)],
+    ["header.offsetHeight", fmt(state.headerH)],
+    ["wrap.clientHeight", fmt(state.wrapClientH)],
+    ["wrap 實際渲染高度(getBoundingClientRect)", fmt(state.wrapRectH)]
+  ];
+  box.innerHTML = rows.map(r =>
+    `<div class="row"><span class="label">${r[0]}</span><span class="val">${r[1]}</span></div>`
+  ).join("");
+
+  const bar = document.getElementById("barFill");
+  if(state.vvH && state.innerH){
+    const pct = Math.max(0, Math.min(100, (state.vvH / state.innerH) * 100));
+    bar.style.width = pct + "%";
+    bar.style.background = pct < 90 ? "var(--red)" : "var(--purple)";
+  }
+}
+
+function appendLog(eventName, state, tag){
+  const line = `[${state.t}] ${eventName} | vis=${state.vis} | innerH=${fmt(state.innerH)} vvH=${fmt(state.vvH)} vvTop=${fmt(state.vvTop)} headerH=${fmt(state.headerH)} wrapH=${fmt(state.wrapRectH)}`;
+  logData.push({line, tag: tag || ""});
+  saveLog(logData);
+  renderLogDom();
+}
+
+function renderLogDom(){
+  const el = document.getElementById("log");
+  el.innerHTML = logData.map(e => `<div class="entry ${e.tag}">${e.line}</div>`).join("");
+  el.scrollTop = el.scrollHeight;
+}
+
+function recordEvent(eventName){
+  const state = readState();
+  renderLive(state);
+
+  let tag = "";
+  if(lastVVHeight !== null && state.vvH !== null){
+    if(state.vvH < lastVVHeight - 1) tag = "shrink";
+    else if(state.vvH > lastVVHeight + 1) tag = "grow";
+  }
+  lastVVHeight = state.vvH;
+  lastWrapHeight = state.wrapRectH;
+
+  appendLog(eventName, state, tag);
+}
+
+// 每次「真正重新載入這個頁面」(冷啟動 / iOS 把 process 清掉重開)都會跑到這裡,
+// 用一條醒目的分隔線標出來,方便你在記錄裡分辨「這是哪一次打開」。
+function markNewSession(){
+  const state = readState();
+  const line = `——— 頁面重新載入 / 新的一次啟動 (${state.t}) ———`;
+  logData.push({line, tag:"launch"});
+  saveLog(logData);
+}
+
+markNewSession();
+renderLogDom();
+recordEvent("initial load");
+
+window.addEventListener("resize", ()=> recordEvent("window.resize"));
+window.addEventListener("orientationchange", ()=> recordEvent("orientationchange"));
+window.addEventListener("pageshow", (e)=> recordEvent("pageshow" + (e.persisted ? " (bfcache)" : "")));
+window.addEventListener("pagehide", ()=> recordEvent("pagehide"));
+document.addEventListener("visibilitychange", ()=> recordEvent("visibilitychange"));
+
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", ()=> recordEvent("visualViewport.resize"));
+  window.visualViewport.addEventListener("scroll", ()=> recordEvent("visualViewport.scroll"));
+}
+
+// 每 500ms 主動 poll 一次也記下來 —— 因為有些過渡瞬間可能沒有觸發任何事件,
+// 但數值其實已經在變,單純被動監聽事件可能會漏掉這種情況。
+setInterval(()=> recordEvent("poll"), 500);
+
+document.getElementById("btnCopy").addEventListener("click", ()=>{
+  const text = logData.map(e => e.line).join("\n");
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>{
+      alert("記錄已複製,共 " + logData.length + " 筆");
+    }).catch(()=>{
+      alert("複製失敗,請手動選取記錄區塊文字");
+    });
+  }else{
+    alert("這個瀏覽器不支援自動複製,請手動選取記錄區塊文字");
+  }
+});
+
+document.getElementById("btnClear").addEventListener("click", ()=>{
+  logData = [];
+  saveLog(logData);
+  renderLogDom();
+  markNewSession();
+  renderLogDom();
+});
+</script>
+
+</body>
+</html>
