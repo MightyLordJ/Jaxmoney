@@ -107,8 +107,8 @@
 </div>
 
 <script>
-const STORAGE_KEY = "viewport_test_log_v2";
-const SESSION_KEY = "viewport_test_session_v2";
+const STORAGE_KEY = "viewport_test_log_v3";
+const SESSION_KEY = "viewport_test_session_v3";
 
 function loadLog(){
   try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }catch(e){ return []; }
@@ -128,6 +128,14 @@ function fmt(n){ return (n === null || n === undefined) ? "-" : Math.round(n * 1
 function nowStr(){
   const d = new Date();
   return d.toLocaleTimeString("zh-TW", {hour12:false}) + "." + String(d.getMilliseconds()).padStart(3,"0");
+}
+
+function trustedHeight(state){
+  // Derived purely from screen.height/width + screen.orientation.type — never from
+  // innerHeight/visualViewport.height, which this whole test exists to cross-check.
+  if(!state.screenH || !state.screenW || !state.screenOrient) return null;
+  const isPortrait = state.screenOrient.indexOf("portrait") === 0;
+  return isPortrait ? state.screenH : state.screenW;
 }
 
 function readState(){
@@ -157,6 +165,8 @@ function readState(){
 
 function renderLive(state){
   const box = document.getElementById("liveBox");
+  const trusted = trustedHeight(state);
+  const mismatch = (trusted !== null && state.innerH !== null && Math.abs(trusted - state.innerH) > 5);
   const rows = [
     ["事件狀態 visibilityState", state.vis],
     ["window.innerHeight", fmt(state.innerH)],
@@ -167,7 +177,8 @@ function renderLive(state){
     ["wrap.clientHeight", fmt(state.wrapClientH)],
     ["wrap 實際渲染高度(getBoundingClientRect)", fmt(state.wrapRectH)],
     ["screen.height / width", fmt(state.screenH) + " / " + fmt(state.screenW)],
-    ["screen.orientation.type", state.screenOrient || "-"]
+    ["screen.orientation.type", state.screenOrient || "-"],
+    ["★ 依 screen 算出的可信高度", fmt(trusted) + (mismatch ? "  ⚠️ 跟 innerH 對不上!" : "")]
   ];
   box.innerHTML = rows.map(r =>
     `<div class="row"><span class="label">${r[0]}</span><span class="val">${r[1]}</span></div>`
@@ -182,8 +193,10 @@ function renderLive(state){
 }
 
 function appendLog(eventName, state, tag){
-  const line = `[${state.t}] ${eventName} | vis=${state.vis} | innerH=${fmt(state.innerH)} vvH=${fmt(state.vvH)} vvTop=${fmt(state.vvTop)} headerH=${fmt(state.headerH)} wrapH=${fmt(state.wrapRectH)} screenH=${fmt(state.screenH)} screenW=${fmt(state.screenW)} orient=${state.screenOrient || "-"}`;
-  logData.push({line, tag: tag || ""});
+  const trusted = trustedHeight(state);
+  const mismatch = (trusted !== null && state.innerH !== null && Math.abs(trusted - state.innerH) > 5);
+  const line = `[${state.t}] ${eventName} | vis=${state.vis} | innerH=${fmt(state.innerH)} vvH=${fmt(state.vvH)} vvTop=${fmt(state.vvTop)} headerH=${fmt(state.headerH)} wrapH=${fmt(state.wrapRectH)} screenH=${fmt(state.screenH)} screenW=${fmt(state.screenW)} orient=${state.screenOrient || "-"} trustedH=${fmt(trusted)}${mismatch ? " ⚠️MISMATCH" : ""}`;
+  logData.push({line, tag: mismatch ? "shrink" : (tag || "")});
   saveLog(logData);
   renderLogDom();
 }
