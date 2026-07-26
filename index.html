@@ -1595,24 +1595,50 @@ document.querySelectorAll(".key").forEach(btn=>{
 });
 
 // Live-binds .canvas-wrap's actual box size to window.visualViewport instead of letting it
-// passively inherit from dvh/bottom:0. visualViewport.height always reflects the space Safari
-// is *currently* actually giving the page (ghost toolbar expanded or collapsed, keyboard up or
-// down, etc.) — so instead of computing a size once and trusting it to stay valid, we just read
-// it fresh every time visualViewport fires and re-apply it immediately. Setting wrap.style.height
-// explicitly (rather than relying on bottom:0 against the layout viewport) is what makes this
-// actually track reality: bottom:0 anchors to the layout viewport, which is not guaranteed to
-// stay in sync with the visual viewport during a toolbar transition.
-function syncCanvasWrap(){
+// passively inherit from dvh/bottom:0. Growing (more space becomes available) is applied
+// immediately — there's no downside to reflecting that right away. Shrinking is treated more
+// cautiously: visualViewport itself isn't perfectly immune to iOS's transition-timing quirks
+// either, so a smaller reading is only committed after a short confirmation delay finds it's
+// still smaller a beat later — this filters out a one-off blip (which bounces back on its own)
+// without losing responsiveness to a real, sustained ghost-toolbar appearance.
+// `trusted=true` (used by refreshLayout, which already sits downstream of the load/orientation/
+// quiet-period safety net) applies immediately regardless of direction.
+let pendingShrinkTimer = null;
+const SHRINK_CONFIRM_MS = 150;
+
+function syncCanvasWrap(trusted){
   const wrap = document.querySelector(".canvas-wrap");
   const header = document.getElementById("boardHeader");
   if(!wrap || !header) return;
-  const vv = window.visualViewport;
-  const viewportHeight = vv ? vv.height : window.innerHeight;
-  const headerHeight = header.offsetHeight;
-  document.documentElement.style.setProperty("--header-height", headerHeight + "px");
-  wrap.style.top = headerHeight + "px";
-  wrap.style.bottom = "auto";
-  wrap.style.height = Math.max(0, viewportHeight - headerHeight) + "px";
+
+  function targetHeight(){
+    const vv = window.visualViewport;
+    const viewportHeight = vv ? vv.height : window.innerHeight;
+    return Math.max(0, viewportHeight - header.offsetHeight);
+  }
+
+  function apply(){
+    const headerHeight = header.offsetHeight;
+    document.documentElement.style.setProperty("--header-height", headerHeight + "px");
+    wrap.style.top = headerHeight + "px";
+    wrap.style.bottom = "auto";
+    wrap.style.height = targetHeight() + "px";
+  }
+
+  if(pendingShrinkTimer){ clearTimeout(pendingShrinkTimer); pendingShrinkTimer = null; }
+
+  const currentHeight = wrap.getBoundingClientRect().height;
+  const nextHeight = targetHeight();
+
+  if(trusted || nextHeight >= currentHeight - 0.5){
+    apply();
+    return;
+  }
+
+  pendingShrinkTimer = setTimeout(()=>{
+    pendingShrinkTimer = null;
+    if(targetHeight() <= currentHeight - 0.5) apply();
+  }, SHRINK_CONFIRM_MS);
 }
 
 function resetScrollPosition(){
@@ -1653,7 +1679,7 @@ function setupCanvasResizeObserver(){
 }
 
 function refreshLayout(){
-  syncCanvasWrap();
+  syncCanvasWrap(true);
   resetScrollPosition();
   requestAnimationFrame(fitAppCanvas);
 }
@@ -1703,16 +1729,16 @@ function delayedRefreshLayout(){
 window.addEventListener("load", delayedRefreshLayout);
 window.addEventListener("resize", scheduleStableRefresh);
 if(window.visualViewport){
-  // Apply immediately, every time — no waiting for things to "settle". The whole point is that
-  // .canvas-wrap should always equal whatever visualViewport reports *right now*, whether that's
-  // mid-transition or not. scheduleStableRefresh still runs after as a safety-net follow-up, in
-  // case header.offsetHeight itself hasn't caught up yet (that one JS still snapshots once, so it
+  // trusted=false: grow applies immediately, shrink needs a short confirmation first (see
+  // syncCanvasWrap above) so a one-off blip in visualViewport itself doesn't get committed.
+  // scheduleStableRefresh still runs after as a further safety-net follow-up, in case
+  // header.offsetHeight itself hasn't caught up yet (that one JS still snapshots once, so it
   // keeps the quiet-period guard).
   window.visualViewport.addEventListener("resize", ()=>{
-    syncCanvasWrap();
+    syncCanvasWrap(false);
     scheduleStableRefresh();
   });
-  window.visualViewport.addEventListener("scroll", syncCanvasWrap);
+  window.visualViewport.addEventListener("scroll", ()=> syncCanvasWrap(false));
 }
 window.addEventListener("orientationchange", delayedRefreshLayout);
 window.addEventListener("pageshow", delayedRefreshLayout);
