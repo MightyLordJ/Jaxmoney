@@ -16,26 +16,35 @@
       controlledAtStart: !!(navigator.serviceWorker && navigator.serviceWorker.controller)
     };
     window.addEventListener("load", function(){
-      try{
-        var nav = (performance.getEntriesByType && performance.getEntriesByType("navigation")[0]) || null;
-        if(nav){
-          entry.fetchStart = Math.round(nav.fetchStart);
-          entry.responseStart = Math.round(nav.responseStart);
-          entry.responseEnd = Math.round(nav.responseEnd);
-          entry.domContentLoaded = Math.round(nav.domContentLoadedEventEnd);
-          entry.loadEnd = Math.round(nav.loadEventEnd);
-          entry.transferSize = nav.transferSize;
-          // 這個數字是關鍵：接近 0 代表幾乎瞬間拿到回應（SW 有攔到、直接吐快取）；
-          // 是實際幾百 ms 甚至幾千 ms，代表這次請求真的跑去打網路了。
-          entry.ttfbMs = Math.round(nav.responseStart - nav.fetchStart);
-        }
-        entry.controlledAtEnd = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
-        var log = [];
-        try{ log = JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){}
-        log.push(entry);
-        if(log.length > 50) log = log.slice(log.length - 50);
-        localStorage.setItem(KEY, JSON.stringify(log));
-      }catch(e){}
+      // loadEventEnd isn't finalized until AFTER all "load" listeners finish running,
+      // so reading it synchronously inside this same listener always returned a stale/zero
+      // value. Deferring by one tick lets the browser finish writing it first.
+      setTimeout(function(){
+        try{
+          var nav = (performance.getEntriesByType && performance.getEntriesByType("navigation")[0]) || null;
+          if(nav){
+            entry.fetchStart = Math.round(nav.fetchStart);
+            entry.responseStart = Math.round(nav.responseStart);
+            entry.responseEnd = Math.round(nav.responseEnd);
+            entry.domContentLoaded = Math.round(nav.domContentLoadedEventEnd);
+            entry.loadEnd = Math.round(nav.loadEventEnd);
+            entry.transferSize = nav.transferSize;
+            // 這個數字是關鍵：接近 0 代表幾乎瞬間拿到回應（SW 有攔到、直接吐快取）；
+            // 是實際幾百 ms 甚至幾千 ms，代表這次請求真的跑去打網路了。
+            entry.ttfbMs = Math.round(nav.responseStart - nav.fetchStart);
+            // 從「拿到回應」到「HTML 解析 + 主要那段同步 script 真正跑完」花了多久 ——
+            // 跟 ttfbMs 分開看，才知道慢的到底是網路/快取，還是解析+執行本身。
+            entry.parseAndScriptMs = (typeof window.__jaxMainScriptDone === "number")
+              ? Math.round(window.__jaxMainScriptDone - nav.responseStart) : null;
+          }
+          entry.controlledAtEnd = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+          var log = [];
+          try{ log = JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){}
+          log.push(entry);
+          if(log.length > 50) log = log.slice(log.length - 50);
+          localStorage.setItem(KEY, JSON.stringify(log));
+        }catch(e){}
+      }, 0);
     });
   }catch(e){}
 })();
@@ -649,12 +658,12 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.3-debug</div>
+  <div class="board-version">v3.7.4-debug</div>
 </div>
 
 <div class="debug-panel" id="debugPanel">
   <div class="debug-header">
-    <span>啟動記錄 v3.7.3-debug（測試用，之後會拿掉）</span>
+    <span>啟動記錄 v3.7.4-debug（測試用，之後會拿掉）</span>
   </div>
   <div class="debug-btn-row">
     <button id="debugCopy">複製記錄</button>
@@ -1877,6 +1886,7 @@ refreshAll();
 loadConverterRates();
 updateDiscountModeUI();
 setupCanvasResizeObserver();
+window.__jaxMainScriptDone = performance.now();
 
 // 內建除錯面板 —— 永遠顯示在下半螢幕，讀的是「這一頁、這一次執行環境」寫的
 // localStorage，不透過另開頁面，不會有 Safari 分頁跟 PWA standalone 模式
@@ -1893,6 +1903,9 @@ setupCanvasResizeObserver();
   function verdictFor(e){
     if(e.controlledAtStart === false){
       return {tag:"bad", text:"⚠️ 啟動時沒被 SW 控制 → navigation 繞過 SW，直接打了網路"};
+    }
+    if(typeof e.parseAndScriptMs === "number" && e.parseAndScriptMs > 600){
+      return {tag:"warn", text:"⚠️ 解析+主要 script 執行偏久（" + e.parseAndScriptMs + "ms）→ 慢的不是網路，是這段本身"};
     }
     if(typeof e.ttfbMs === "number"){
       if(e.ttfbMs > 800) return {tag:"warn", text:"TTFB 偏高（" + e.ttfbMs + "ms）"};
@@ -1913,9 +1926,10 @@ setupCanvasResizeObserver();
         <div class="row"><span class="label">時間</span><span class="val">${e.t || "-"}</span></div>
         <div class="row"><span class="label">啟動時已被 SW 控制</span><span class="val">${e.controlledAtStart}</span></div>
         <div class="row"><span class="label">load 時已被 SW 控制</span><span class="val">${e.controlledAtEnd}</span></div>
-        <div class="row"><span class="label">TTFB</span><span class="val">${e.ttfbMs ?? "-"} ms</span></div>
+        <div class="row"><span class="label">TTFB（拿到回應多快）</span><span class="val">${e.ttfbMs ?? "-"} ms</span></div>
+        <div class="row"><span class="label">解析+主要 script 執行</span><span class="val">${e.parseAndScriptMs ?? "-"} ms</span></div>
         <div class="row"><span class="label">DOMContentLoaded</span><span class="val">${e.domContentLoaded ?? "-"} ms</span></div>
-        <div class="row"><span class="label">load 事件</span><span class="val">${e.loadEnd ?? "-"} ms</span></div>
+        <div class="row"><span class="label">load 事件（完全結束）</span><span class="val">${e.loadEnd ?? "-"} ms</span></div>
         <div class="debug-verdict ${v.tag}">${v.text}</div>
       </div>`;
     }).join("");
