@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>JaxMoney</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="apple-touch-startup-image" href="startup-test.png">
 <link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0A0E0C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="JaxMoney">
@@ -96,10 +94,6 @@
     font-weight:700;
     letter-spacing:-0.2px;
     color:#5E5CE6;
-    touch-action:manipulation;
-    -webkit-tap-highlight-color:transparent;
-    -webkit-user-select:none;
-    user-select:none;
   }
   .board-version{
     font-size:11px;
@@ -529,7 +523,7 @@
 
 <div class="board-header" id="boardHeader">
   <div class="board-title-group">
-    <div class="board-title" id="boardTitle">JaxMoney</div>
+    <div class="board-title">JaxMoney</div>
     <button class="refresh-btn" id="refreshBtn" title="重新整理匯率">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/>
@@ -540,7 +534,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.9-splash-test</div>
+  <div class="board-version">v3.7.2+manifest-only</div>
 </div>
 
 <div class="canvas-wrap">
