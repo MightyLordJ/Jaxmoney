@@ -2,9 +2,49 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<script>
+// 冷啟動診斷記錄器 —— 刻意放在最前面、不依賴任何其他程式碼,只記錄「這次載入
+// 有沒有被 Service Worker 接手」跟「網路/快取拿到第一個位元組花了多久」,寫進
+// localStorage(跟 viewport-test.html 同一套模式),之後直接開 load-test.html 看記錄,
+// 不需要接電腦用 Web Inspector。純記錄、不做任何修正邏輯，不影響現有行為。
+(function(){
+  try{
+    var KEY = "jaxmoney-loadlog";
+    var entry = {
+      t: new Date().toLocaleString("zh-TW", { hour12:false }),
+      swSupported: ("serviceWorker" in navigator),
+      controlledAtStart: !!(navigator.serviceWorker && navigator.serviceWorker.controller)
+    };
+    window.addEventListener("load", function(){
+      try{
+        var nav = (performance.getEntriesByType && performance.getEntriesByType("navigation")[0]) || null;
+        if(nav){
+          entry.fetchStart = Math.round(nav.fetchStart);
+          entry.responseStart = Math.round(nav.responseStart);
+          entry.responseEnd = Math.round(nav.responseEnd);
+          entry.domContentLoaded = Math.round(nav.domContentLoadedEventEnd);
+          entry.loadEnd = Math.round(nav.loadEventEnd);
+          entry.transferSize = nav.transferSize;
+          // 這個數字是關鍵：接近 0 代表幾乎瞬間拿到回應（SW 有攔到、直接吐快取）；
+          // 是實際幾百 ms 甚至幾千 ms，代表這次請求真的跑去打網路了。
+          entry.ttfbMs = Math.round(nav.responseStart - nav.fetchStart);
+        }
+        entry.controlledAtEnd = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+        var log = [];
+        try{ log = JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){}
+        log.push(entry);
+        if(log.length > 50) log = log.slice(log.length - 50);
+        localStorage.setItem(KEY, JSON.stringify(log));
+      }catch(e){}
+    });
+  }catch(e){}
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>JaxMoney</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0A0E0C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="JaxMoney">
