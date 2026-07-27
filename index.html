@@ -144,6 +144,77 @@
     align-items:center;
     gap:6px;
   }
+  .debug-panel{
+    position:fixed;
+    top:0; left:0; right:0; bottom:0;
+    z-index:50;
+    background:var(--page-bg);
+    display:flex;
+    flex-direction:column;
+    padding: calc(10px + env(safe-area-inset-top)) 0 env(safe-area-inset-bottom);
+  }
+  .debug-header{
+    flex:0 0 auto;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0 16px 10px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--purple);
+    border-bottom:1px solid var(--separator);
+  }
+  .debug-header button{
+    font-family:var(--font);
+    font-size:12px;
+    font-weight:600;
+    background:var(--gray-fill);
+    color:var(--text-primary);
+    border:none;
+    border-radius:8px;
+    padding:5px 10px;
+    cursor:pointer;
+  }
+  .debug-btn-row{
+    flex:0 0 auto;
+    display:flex;
+    gap:8px;
+    padding:10px 16px;
+  }
+  .debug-btn-row button{
+    flex:1;
+    font-family:var(--font);
+    font-size:13px;
+    font-weight:600;
+    padding:10px;
+    border-radius:10px;
+    border:none;
+    cursor:pointer;
+  }
+  .debug-btn-row button:first-child{ background:var(--purple); color:#fff; }
+  .debug-btn-row button:last-child{ background:var(--card-bg); color:var(--red); }
+  .debug-list{
+    flex:1 1 auto;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:0 16px 16px;
+  }
+  .debug-entry{
+    background:var(--card-bg);
+    border-radius:12px;
+    padding:10px 12px;
+    margin-bottom:8px;
+    font-size:12px;
+    line-height:1.7;
+  }
+  .debug-entry .row{ display:flex; justify-content:space-between; gap:8px; }
+  .debug-entry .label{ color:var(--text-secondary); }
+  .debug-entry .val{ font-weight:600; font-variant-numeric:tabular-nums; }
+  .debug-verdict{ font-size:12px; font-weight:700; margin-top:6px; padding-top:6px; border-top:1px solid var(--separator); }
+  .debug-verdict.good{ color:var(--green); }
+  .debug-verdict.bad{ color:var(--red); }
+  .debug-verdict.warn{ color:var(--orange); }
+  .debug-empty{ color:var(--text-secondary); font-size:13px; padding:20px 0; text-align:center; }
   .refresh-btn{
     width:13px;
     height:13px;
@@ -562,7 +633,7 @@
 
 <div class="board-header" id="boardHeader">
   <div class="board-title-group">
-    <div class="board-title">JaxMoney</div>
+    <div class="board-title" id="boardTitle">JaxMoney</div>
     <button class="refresh-btn" id="refreshBtn" title="重新整理匯率">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/>
@@ -574,6 +645,18 @@
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
   <div class="board-version">v3.7.2</div>
+</div>
+
+<div class="debug-panel" id="debugPanel" style="display:none;">
+  <div class="debug-header">
+    <span>啟動載入時間記錄（本機，同一個開啟模式）</span>
+    <button id="debugClose">關閉</button>
+  </div>
+  <div class="debug-btn-row">
+    <button id="debugCopy">複製記錄</button>
+    <button id="debugClear">清空記錄</button>
+  </div>
+  <div class="debug-list" id="debugList"></div>
 </div>
 
 <div class="canvas-wrap">
@@ -1790,6 +1873,84 @@ refreshAll();
 loadConverterRates();
 updateDiscountModeUI();
 setupCanvasResizeObserver();
+
+// 內建除錯面板 —— 讀的是「這一頁、這一次執行環境」寫的 localStorage，不透過另開頁面，
+// 所以不會有 Safari 分頁跟 PWA standalone 模式 storage 不共用的問題。
+// 連續點標題 5 下、2.5 秒內觸發，避免平常使用時誤觸。
+(function setupDebugPanel(){
+  const KEY = "jaxmoney-loadlog";
+  const title = document.getElementById("boardTitle");
+  const panel = document.getElementById("debugPanel");
+  const list = document.getElementById("debugList");
+  if(!title || !panel || !list) return;
+
+  let tapCount = 0;
+  let tapTimer = null;
+  title.addEventListener("click", ()=>{
+    tapCount++;
+    if(tapTimer) clearTimeout(tapTimer);
+    tapTimer = setTimeout(()=>{ tapCount = 0; }, 2500);
+    if(tapCount >= 5){
+      tapCount = 0;
+      openDebugPanel();
+    }
+  });
+
+  function loadLog(){
+    try{ return JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){ return []; }
+  }
+
+  function verdictFor(e){
+    if(e.controlledAtStart === false){
+      return {tag:"bad", text:"⚠️ 啟動時沒被 SW 控制 → navigation 繞過 SW，直接打了網路"};
+    }
+    if(typeof e.ttfbMs === "number"){
+      if(e.ttfbMs > 800) return {tag:"warn", text:"TTFB 偏高（" + e.ttfbMs + "ms）"};
+      return {tag:"good", text:"TTFB 很低（" + e.ttfbMs + "ms），幾乎瞬間拿到回應"};
+    }
+    return {tag:"warn", text:"缺少計時資料"};
+  }
+
+  function render(){
+    const log = loadLog().slice().reverse();
+    if(log.length === 0){
+      list.innerHTML = '<div class="debug-empty">還沒有記錄。完全關閉 App、從主畫面重開幾次再回來看。</div>';
+      return;
+    }
+    list.innerHTML = log.map(e=>{
+      const v = verdictFor(e);
+      return `<div class="debug-entry">
+        <div class="row"><span class="label">時間</span><span class="val">${e.t || "-"}</span></div>
+        <div class="row"><span class="label">啟動時已被 SW 控制</span><span class="val">${e.controlledAtStart}</span></div>
+        <div class="row"><span class="label">load 時已被 SW 控制</span><span class="val">${e.controlledAtEnd}</span></div>
+        <div class="row"><span class="label">TTFB</span><span class="val">${e.ttfbMs ?? "-"} ms</span></div>
+        <div class="row"><span class="label">DOMContentLoaded</span><span class="val">${e.domContentLoaded ?? "-"} ms</span></div>
+        <div class="row"><span class="label">load 事件</span><span class="val">${e.loadEnd ?? "-"} ms</span></div>
+        <div class="debug-verdict ${v.tag}">${v.text}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function openDebugPanel(){
+    render();
+    panel.style.display = "flex";
+  }
+
+  document.getElementById("debugClose").addEventListener("click", ()=>{
+    panel.style.display = "none";
+  });
+  document.getElementById("debugCopy").addEventListener("click", ()=>{
+    const text = JSON.stringify(loadLog(), null, 2);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=> alert("記錄已複製，共 " + loadLog().length + " 筆"))
+        .catch(()=> alert("複製失敗"));
+    }
+  });
+  document.getElementById("debugClear").addEventListener("click", ()=>{
+    localStorage.removeItem(KEY);
+    render();
+  });
+})();
 </script>
 
 </body>
