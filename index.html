@@ -2,107 +2,6 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<script>
-// 冷啟動診斷記錄器 —— 一開始就立刻寫一筆「已開始」的記錄，之後每個階段（HTML 解析完成、
-// load 事件完成）都回頭更新同一筆，而不是等全部跑完才寫。這樣即使這次啟動卡住、
-// load 事件從來沒發生，下次打開時記錄裡還是會留著「上次啟動開始了、但沒跑完」這筆，
-// 卡住本身就是看得到的診斷結果，不會因為沒跑完就整個消失。純記錄、不影響現有行為。
-(function(){
-  try{
-    var KEY = "jaxmoney-loadlog";
-    var id = Date.now() + "-" + Math.random().toString(36).slice(2,7);
-    var entry = {
-      id: id,
-      t: new Date().toLocaleString("zh-TW", { hour12:false }),
-      startEpochMs: Date.now(),
-      swSupported: ("serviceWorker" in navigator),
-      controlledAtStart: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
-      stage: "started",
-      completed: false
-    };
-
-    function saveEntry(){
-      try{
-        var log = [];
-        try{ log = JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){}
-        var idx = -1;
-        for(var i=0;i<log.length;i++){ if(log[i] && log[i].id === id){ idx = i; break; } }
-        if(idx === -1){ log.push(entry); } else { log[idx] = entry; }
-        if(log.length > 50) log = log.slice(log.length - 50);
-        localStorage.setItem(KEY, JSON.stringify(log));
-      }catch(e){}
-    }
-
-    saveEntry();
-
-    // 逐一追蹤每個子資源（apple-touch-icon.png、manifest.json 等）的載入時間，資源一
-    // 到就立刻更新記錄，不等 load 事件——這樣就算這次又卡在 domContentLoaded 之後、
-    // load 之前，也能直接看到當下卡住的是哪一個資源、卡了多久，而不用等它跑完才知道。
-    entry.resources = [];
-    if(typeof PerformanceObserver !== "undefined"){
-      try{
-        var po = new PerformanceObserver(function(list){
-          list.getEntries().forEach(function(r){
-            entry.resources.push({
-              name: r.name.replace(location.origin, ""),
-              startMs: Math.round(r.startTime),
-              durationMs: Math.round(r.duration),
-              transferSize: r.transferSize
-            });
-          });
-          saveEntry();
-        });
-        po.observe({type: "resource", buffered: true});
-      }catch(e){}
-    }
-
-    document.addEventListener("DOMContentLoaded", function(){
-      entry.stage = "domContentLoaded";
-      entry.domInteractiveMs = Math.round(performance.now());
-      try{
-        var navEarly = (performance.getEntriesByType && performance.getEntriesByType("navigation")[0]) || null;
-        if(navEarly){
-          entry.fetchStart = Math.round(navEarly.fetchStart);
-          entry.responseStart = Math.round(navEarly.responseStart);
-          entry.responseEnd = Math.round(navEarly.responseEnd);
-          entry.ttfbMs = Math.round(navEarly.responseStart - navEarly.fetchStart);
-        }
-      }catch(e){}
-      saveEntry();
-    });
-
-    window.addEventListener("load", function(){
-      // loadEventEnd isn't finalized until AFTER all "load" listeners finish running,
-      // so reading it synchronously inside this same listener always returned a stale/zero
-      // value. Deferring by one tick lets the browser finish writing it first.
-      setTimeout(function(){
-        try{
-          var nav = (performance.getEntriesByType && performance.getEntriesByType("navigation")[0]) || null;
-          if(nav){
-            entry.fetchStart = Math.round(nav.fetchStart);
-            entry.responseStart = Math.round(nav.responseStart);
-            entry.responseEnd = Math.round(nav.responseEnd);
-            entry.domContentLoaded = Math.round(nav.domContentLoadedEventEnd);
-            entry.loadEnd = Math.round(nav.loadEventEnd);
-            entry.transferSize = nav.transferSize;
-            // 這個數字是關鍵：接近 0 代表幾乎瞬間拿到回應（SW 有攔到、直接吐快取）；
-            // 是實際幾百 ms 甚至幾千 ms，代表這次請求真的跑去打網路了。
-            entry.ttfbMs = Math.round(nav.responseStart - nav.fetchStart);
-            // 從「拿到回應」到「HTML 解析 + 主要那段同步 script 真正跑完」花了多久 ——
-            // 跟 ttfbMs 分開看，才知道慢的到底是網路/快取，還是解析+執行本身。
-            entry.parseAndScriptMs = (typeof window.__jaxMainScriptDone === "number")
-              ? Math.round(window.__jaxMainScriptDone - nav.responseStart) : null;
-          }
-          entry.controlledAtEnd = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
-          entry.stage = "load";
-          entry.completed = true;
-          saveEntry();
-        }catch(e){}
-      }, 0);
-    });
-  }catch(e){}
-})();
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>JaxMoney</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -212,78 +111,6 @@
     align-items:center;
     gap:6px;
   }
-  .debug-panel{
-    position:fixed;
-    top:50%; left:0; right:0; bottom:0;
-    z-index:50;
-    background:var(--page-bg);
-    border-top:2px solid var(--purple);
-    display:flex;
-    flex-direction:column;
-    padding: 8px 0 env(safe-area-inset-bottom);
-  }
-  .debug-header{
-    flex:0 0 auto;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:0 16px 10px;
-    font-size:13px;
-    font-weight:600;
-    color:var(--purple);
-    border-bottom:1px solid var(--separator);
-  }
-  .debug-header button{
-    font-family:var(--font);
-    font-size:12px;
-    font-weight:600;
-    background:var(--gray-fill);
-    color:var(--text-primary);
-    border:none;
-    border-radius:8px;
-    padding:5px 10px;
-    cursor:pointer;
-  }
-  .debug-btn-row{
-    flex:0 0 auto;
-    display:flex;
-    gap:8px;
-    padding:10px 16px;
-  }
-  .debug-btn-row button{
-    flex:1;
-    font-family:var(--font);
-    font-size:13px;
-    font-weight:600;
-    padding:10px;
-    border-radius:10px;
-    border:none;
-    cursor:pointer;
-  }
-  .debug-btn-row button:first-child{ background:var(--purple); color:#fff; }
-  .debug-btn-row button:last-child{ background:var(--card-bg); color:var(--red); }
-  .debug-list{
-    flex:1 1 auto;
-    overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
-    padding:0 16px 16px;
-  }
-  .debug-entry{
-    background:var(--card-bg);
-    border-radius:12px;
-    padding:10px 12px;
-    margin-bottom:8px;
-    font-size:12px;
-    line-height:1.7;
-  }
-  .debug-entry .row{ display:flex; justify-content:space-between; gap:8px; }
-  .debug-entry .label{ color:var(--text-secondary); }
-  .debug-entry .val{ font-weight:600; font-variant-numeric:tabular-nums; }
-  .debug-verdict{ font-size:12px; font-weight:700; margin-top:6px; padding-top:6px; border-top:1px solid var(--separator); }
-  .debug-verdict.good{ color:var(--green); }
-  .debug-verdict.bad{ color:var(--red); }
-  .debug-verdict.warn{ color:var(--orange); }
-  .debug-empty{ color:var(--text-secondary); font-size:13px; padding:20px 0; text-align:center; }
   .refresh-btn{
     width:13px;
     height:13px;
@@ -713,18 +540,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.8-debug</div>
-</div>
-
-<div class="debug-panel" id="debugPanel">
-  <div class="debug-header">
-    <span>啟動記錄 v3.7.8-debug（測試用，之後會拿掉）</span>
-  </div>
-  <div class="debug-btn-row">
-    <button id="debugCopy">複製記錄</button>
-    <button id="debugClear">清空記錄</button>
-  </div>
-  <div class="debug-list" id="debugList"></div>
+  <div class="board-version">v3.7.9-splash-test</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1941,82 +1757,6 @@ refreshAll();
 loadConverterRates();
 updateDiscountModeUI();
 setupCanvasResizeObserver();
-window.__jaxMainScriptDone = performance.now();
-
-// 內建除錯面板 —— 永遠顯示在下半螢幕，讀的是「這一頁、這一次執行環境」寫的
-// localStorage，不透過另開頁面，不會有 Safari 分頁跟 PWA standalone 模式
-// storage 不共用的問題。純測試用，抓完數據之後會拿掉。
-(function setupDebugPanel(){
-  const KEY = "jaxmoney-loadlog";
-  const list = document.getElementById("debugList");
-  if(!list) return;
-
-  function loadLog(){
-    try{ return JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){ return []; }
-  }
-
-  function verdictFor(e){
-    if(e.completed === false){
-      return {tag:"bad", text:"⚠️ 這次啟動卡在「" + (e.stage || "未知") + "」，沒有跑完（沒有 load 事件）"};
-    }
-    if(e.controlledAtStart === false){
-      return {tag:"bad", text:"⚠️ 啟動時沒被 SW 控制 → navigation 繞過 SW，直接打了網路"};
-    }
-    if(typeof e.parseAndScriptMs === "number" && e.parseAndScriptMs > 600){
-      return {tag:"warn", text:"⚠️ 解析+主要 script 執行偏久（" + e.parseAndScriptMs + "ms）→ 慢的不是網路，是這段本身"};
-    }
-    if(typeof e.ttfbMs === "number"){
-      if(e.ttfbMs > 800) return {tag:"warn", text:"TTFB 偏高（" + e.ttfbMs + "ms）"};
-      return {tag:"good", text:"TTFB 很低（" + e.ttfbMs + "ms），幾乎瞬間拿到回應"};
-    }
-    return {tag:"warn", text:"缺少計時資料"};
-  }
-
-  function render(){
-    const log = loadLog().slice().reverse();
-    if(log.length === 0){
-      list.innerHTML = '<div class="debug-empty">還沒有記錄。完全關閉 App、從主畫面重開幾次再回來看。</div>';
-      return;
-    }
-    list.innerHTML = log.map(e=>{
-      const v = verdictFor(e);
-      const resRows = (e.resources && e.resources.length)
-        ? e.resources.map(r => `<div class="row"><span class="label">↳ ${r.name}</span><span class="val">${r.durationMs}ms${r.transferSize === 0 ? " (cache)" : ""}</span></div>`).join("")
-        : '<div class="row"><span class="label">子資源</span><span class="val">（無/尚未回報）</span></div>';
-      const liveElapsed = (!e.completed && e.startEpochMs)
-        ? `<div class="row"><span class="label">距離啟動已過（即時）</span><span class="val">${((Date.now() - e.startEpochMs)/1000).toFixed(1)} 秒</span></div>` : "";
-      return `<div class="debug-entry">
-        <div class="row"><span class="label">時間</span><span class="val">${e.t || "-"}</span></div>
-        <div class="row"><span class="label">狀態</span><span class="val">${e.completed ? "完整跑完" : "卡在 " + (e.stage || "未知")}</span></div>
-        ${liveElapsed}
-        <div class="row"><span class="label">啟動時已被 SW 控制</span><span class="val">${e.controlledAtStart}</span></div>
-        <div class="row"><span class="label">load 時已被 SW 控制</span><span class="val">${e.controlledAtEnd ?? "-"}</span></div>
-        <div class="row"><span class="label">TTFB（拿到回應多快）</span><span class="val">${e.ttfbMs ?? "-"} ms</span></div>
-        <div class="row"><span class="label">解析+主要 script 執行</span><span class="val">${e.parseAndScriptMs ?? "-"} ms</span></div>
-        <div class="row"><span class="label">DOMContentLoaded</span><span class="val">${e.domContentLoaded ?? "-"} ms</span></div>
-        <div class="row"><span class="label">load 事件（完全結束）</span><span class="val">${e.loadEnd ?? "-"} ms</span></div>
-        ${resRows}
-        <div class="debug-verdict ${v.tag}">${v.text}</div>
-      </div>`;
-    }).join("");
-  }
-
-  document.getElementById("debugCopy").addEventListener("click", ()=>{
-    const text = JSON.stringify(loadLog(), null, 2);
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(()=> alert("記錄已複製，共 " + loadLog().length + " 筆"))
-        .catch(()=> alert("複製失敗"));
-    }
-  });
-  document.getElementById("debugClear").addEventListener("click", ()=>{
-    localStorage.removeItem(KEY);
-    render();
-  });
-
-  render();
-  window.addEventListener("load", render);
-  setInterval(render, 1000);
-})();
 </script>
 
 </body>
