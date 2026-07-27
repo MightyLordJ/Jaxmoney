@@ -150,12 +150,13 @@
   }
   .debug-panel{
     position:fixed;
-    top:0; left:0; right:0; bottom:0;
+    top:50%; left:0; right:0; bottom:0;
     z-index:50;
     background:var(--page-bg);
+    border-top:2px solid var(--purple);
     display:flex;
     flex-direction:column;
-    padding: calc(10px + env(safe-area-inset-top)) 0 env(safe-area-inset-bottom);
+    padding: 8px 0 env(safe-area-inset-bottom);
   }
   .debug-header{
     flex:0 0 auto;
@@ -648,13 +649,12 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.2</div>
+  <div class="board-version">v3.7.3-debug</div>
 </div>
 
-<div class="debug-panel" id="debugPanel" style="display:none;">
+<div class="debug-panel" id="debugPanel">
   <div class="debug-header">
-    <span>啟動載入時間記錄（本機，同一個開啟模式）</span>
-    <button id="debugClose">關閉</button>
+    <span>啟動記錄 v3.7.3-debug（測試用，之後會拿掉）</span>
   </div>
   <div class="debug-btn-row">
     <button id="debugCopy">複製記錄</button>
@@ -1878,27 +1878,13 @@ loadConverterRates();
 updateDiscountModeUI();
 setupCanvasResizeObserver();
 
-// 內建除錯面板 —— 讀的是「這一頁、這一次執行環境」寫的 localStorage，不透過另開頁面，
-// 所以不會有 Safari 分頁跟 PWA standalone 模式 storage 不共用的問題。
-// 連續點標題 5 下、2.5 秒內觸發，避免平常使用時誤觸。
+// 內建除錯面板 —— 永遠顯示在下半螢幕，讀的是「這一頁、這一次執行環境」寫的
+// localStorage，不透過另開頁面，不會有 Safari 分頁跟 PWA standalone 模式
+// storage 不共用的問題。純測試用，抓完數據之後會拿掉。
 (function setupDebugPanel(){
   const KEY = "jaxmoney-loadlog";
-  const title = document.getElementById("boardTitle");
-  const panel = document.getElementById("debugPanel");
   const list = document.getElementById("debugList");
-  if(!title || !panel || !list) return;
-
-  let tapCount = 0;
-  let tapTimer = null;
-  title.addEventListener("click", ()=>{
-    tapCount++;
-    if(tapTimer) clearTimeout(tapTimer);
-    tapTimer = setTimeout(()=>{ tapCount = 0; }, 2500);
-    if(tapCount >= 5){
-      tapCount = 0;
-      openDebugPanel();
-    }
-  });
+  if(!list) return;
 
   function loadLog(){
     try{ return JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){ return []; }
@@ -1935,14 +1921,6 @@ setupCanvasResizeObserver();
     }).join("");
   }
 
-  function openDebugPanel(){
-    render();
-    panel.style.display = "flex";
-  }
-
-  document.getElementById("debugClose").addEventListener("click", ()=>{
-    panel.style.display = "none";
-  });
   document.getElementById("debugCopy").addEventListener("click", ()=>{
     const text = JSON.stringify(loadLog(), null, 2);
     if(navigator.clipboard && navigator.clipboard.writeText){
@@ -1954,6 +1932,9 @@ setupCanvasResizeObserver();
     localStorage.removeItem(KEY);
     render();
   });
+
+  render();
+  window.addEventListener("load", render);
 })();
 </script>
 

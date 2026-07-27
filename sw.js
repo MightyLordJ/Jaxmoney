@@ -1,4 +1,4 @@
-const CACHE_NAME = "jaxmoney-shell-v5";
+const CACHE_NAME = "jaxmoney-shell-v6";
 const APP_SHELL = ["./", "./index.html", "./apple-touch-icon.png", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
