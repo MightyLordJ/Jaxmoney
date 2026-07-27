@@ -3,18 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <script>
-// 冷啟動診斷記錄器 —— 刻意放在最前面、不依賴任何其他程式碼,只記錄「這次載入
-// 有沒有被 Service Worker 接手」跟「網路/快取拿到第一個位元組花了多久」,寫進
-// localStorage(跟 viewport-test.html 同一套模式),之後直接開 load-test.html 看記錄,
-// 不需要接電腦用 Web Inspector。純記錄、不做任何修正邏輯，不影響現有行為。
+// 冷啟動診斷記錄器 —— 一開始就立刻寫一筆「已開始」的記錄，之後每個階段（HTML 解析完成、
+// load 事件完成）都回頭更新同一筆，而不是等全部跑完才寫。這樣即使這次啟動卡住、
+// load 事件從來沒發生，下次打開時記錄裡還是會留著「上次啟動開始了、但沒跑完」這筆，
+// 卡住本身就是看得到的診斷結果，不會因為沒跑完就整個消失。純記錄、不影響現有行為。
 (function(){
   try{
     var KEY = "jaxmoney-loadlog";
+    var id = Date.now() + "-" + Math.random().toString(36).slice(2,7);
     var entry = {
+      id: id,
       t: new Date().toLocaleString("zh-TW", { hour12:false }),
       swSupported: ("serviceWorker" in navigator),
-      controlledAtStart: !!(navigator.serviceWorker && navigator.serviceWorker.controller)
+      controlledAtStart: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+      stage: "started",
+      completed: false
     };
+
+    function saveEntry(){
+      try{
+        var log = [];
+        try{ log = JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){}
+        var idx = -1;
+        for(var i=0;i<log.length;i++){ if(log[i] && log[i].id === id){ idx = i; break; } }
+        if(idx === -1){ log.push(entry); } else { log[idx] = entry; }
+        if(log.length > 50) log = log.slice(log.length - 50);
+        localStorage.setItem(KEY, JSON.stringify(log));
+      }catch(e){}
+    }
+
+    saveEntry();
+
+    document.addEventListener("DOMContentLoaded", function(){
+      entry.stage = "domContentLoaded";
+      entry.domInteractiveMs = Math.round(performance.now());
+      saveEntry();
+    });
+
     window.addEventListener("load", function(){
       // loadEventEnd isn't finalized until AFTER all "load" listeners finish running,
       // so reading it synchronously inside this same listener always returned a stale/zero
@@ -38,11 +63,9 @@
               ? Math.round(window.__jaxMainScriptDone - nav.responseStart) : null;
           }
           entry.controlledAtEnd = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
-          var log = [];
-          try{ log = JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){}
-          log.push(entry);
-          if(log.length > 50) log = log.slice(log.length - 50);
-          localStorage.setItem(KEY, JSON.stringify(log));
+          entry.stage = "load";
+          entry.completed = true;
+          saveEntry();
         }catch(e){}
       }, 0);
     });
@@ -658,12 +681,12 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.4-debug</div>
+  <div class="board-version">v3.7.5-debug</div>
 </div>
 
 <div class="debug-panel" id="debugPanel">
   <div class="debug-header">
-    <span>啟動記錄 v3.7.4-debug（測試用，之後會拿掉）</span>
+    <span>啟動記錄 v3.7.5-debug（測試用，之後會拿掉）</span>
   </div>
   <div class="debug-btn-row">
     <button id="debugCopy">複製記錄</button>
@@ -1901,6 +1924,9 @@ window.__jaxMainScriptDone = performance.now();
   }
 
   function verdictFor(e){
+    if(e.completed === false){
+      return {tag:"bad", text:"⚠️ 這次啟動卡在「" + (e.stage || "未知") + "」，沒有跑完（沒有 load 事件）"};
+    }
     if(e.controlledAtStart === false){
       return {tag:"bad", text:"⚠️ 啟動時沒被 SW 控制 → navigation 繞過 SW，直接打了網路"};
     }
@@ -1924,8 +1950,9 @@ window.__jaxMainScriptDone = performance.now();
       const v = verdictFor(e);
       return `<div class="debug-entry">
         <div class="row"><span class="label">時間</span><span class="val">${e.t || "-"}</span></div>
+        <div class="row"><span class="label">狀態</span><span class="val">${e.completed ? "完整跑完" : "卡在 " + (e.stage || "未知")}</span></div>
         <div class="row"><span class="label">啟動時已被 SW 控制</span><span class="val">${e.controlledAtStart}</span></div>
-        <div class="row"><span class="label">load 時已被 SW 控制</span><span class="val">${e.controlledAtEnd}</span></div>
+        <div class="row"><span class="label">load 時已被 SW 控制</span><span class="val">${e.controlledAtEnd ?? "-"}</span></div>
         <div class="row"><span class="label">TTFB（拿到回應多快）</span><span class="val">${e.ttfbMs ?? "-"} ms</span></div>
         <div class="row"><span class="label">解析+主要 script 執行</span><span class="val">${e.parseAndScriptMs ?? "-"} ms</span></div>
         <div class="row"><span class="label">DOMContentLoaded</span><span class="val">${e.domContentLoaded ?? "-"} ms</span></div>
