@@ -34,6 +34,27 @@
 
     saveEntry();
 
+    // 逐一追蹤每個子資源（apple-touch-icon.png、manifest.json 等）的載入時間，資源一
+    // 到就立刻更新記錄，不等 load 事件——這樣就算這次又卡在 domContentLoaded 之後、
+    // load 之前，也能直接看到當下卡住的是哪一個資源、卡了多久，而不用等它跑完才知道。
+    entry.resources = [];
+    if(typeof PerformanceObserver !== "undefined"){
+      try{
+        var po = new PerformanceObserver(function(list){
+          list.getEntries().forEach(function(r){
+            entry.resources.push({
+              name: r.name.replace(location.origin, ""),
+              startMs: Math.round(r.startTime),
+              durationMs: Math.round(r.duration),
+              transferSize: r.transferSize
+            });
+          });
+          saveEntry();
+        });
+        po.observe({type: "resource", buffered: true});
+      }catch(e){}
+    }
+
     document.addEventListener("DOMContentLoaded", function(){
       entry.stage = "domContentLoaded";
       entry.domInteractiveMs = Math.round(performance.now());
@@ -681,12 +702,12 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.5-debug</div>
+  <div class="board-version">v3.7.6-debug</div>
 </div>
 
 <div class="debug-panel" id="debugPanel">
   <div class="debug-header">
-    <span>啟動記錄 v3.7.5-debug（測試用，之後會拿掉）</span>
+    <span>啟動記錄 v3.7.6-debug（測試用，之後會拿掉）</span>
   </div>
   <div class="debug-btn-row">
     <button id="debugCopy">複製記錄</button>
@@ -1948,6 +1969,9 @@ window.__jaxMainScriptDone = performance.now();
     }
     list.innerHTML = log.map(e=>{
       const v = verdictFor(e);
+      const resRows = (e.resources && e.resources.length)
+        ? e.resources.map(r => `<div class="row"><span class="label">↳ ${r.name}</span><span class="val">${r.durationMs}ms${r.transferSize === 0 ? " (cache)" : ""}</span></div>`).join("")
+        : '<div class="row"><span class="label">子資源</span><span class="val">（無/尚未回報）</span></div>';
       return `<div class="debug-entry">
         <div class="row"><span class="label">時間</span><span class="val">${e.t || "-"}</span></div>
         <div class="row"><span class="label">狀態</span><span class="val">${e.completed ? "完整跑完" : "卡在 " + (e.stage || "未知")}</span></div>
@@ -1957,6 +1981,7 @@ window.__jaxMainScriptDone = performance.now();
         <div class="row"><span class="label">解析+主要 script 執行</span><span class="val">${e.parseAndScriptMs ?? "-"} ms</span></div>
         <div class="row"><span class="label">DOMContentLoaded</span><span class="val">${e.domContentLoaded ?? "-"} ms</span></div>
         <div class="row"><span class="label">load 事件（完全結束）</span><span class="val">${e.loadEnd ?? "-"} ms</span></div>
+        ${resRows}
         <div class="debug-verdict ${v.tag}">${v.text}</div>
       </div>`;
     }).join("");
