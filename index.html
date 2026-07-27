@@ -14,6 +14,7 @@
     var entry = {
       id: id,
       t: new Date().toLocaleString("zh-TW", { hour12:false }),
+      startEpochMs: Date.now(),
       swSupported: ("serviceWorker" in navigator),
       controlledAtStart: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
       stage: "started",
@@ -58,6 +59,15 @@
     document.addEventListener("DOMContentLoaded", function(){
       entry.stage = "domContentLoaded";
       entry.domInteractiveMs = Math.round(performance.now());
+      try{
+        var navEarly = (performance.getEntriesByType && performance.getEntriesByType("navigation")[0]) || null;
+        if(navEarly){
+          entry.fetchStart = Math.round(navEarly.fetchStart);
+          entry.responseStart = Math.round(navEarly.responseStart);
+          entry.responseEnd = Math.round(navEarly.responseEnd);
+          entry.ttfbMs = Math.round(navEarly.responseStart - navEarly.fetchStart);
+        }
+      }catch(e){}
       saveEntry();
     });
 
@@ -702,12 +712,12 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.7.6-debug</div>
+  <div class="board-version">v3.7.7-debug</div>
 </div>
 
 <div class="debug-panel" id="debugPanel">
   <div class="debug-header">
-    <span>啟動記錄 v3.7.6-debug（測試用，之後會拿掉）</span>
+    <span>啟動記錄 v3.7.7-debug（測試用，之後會拿掉）</span>
   </div>
   <div class="debug-btn-row">
     <button id="debugCopy">複製記錄</button>
@@ -1972,9 +1982,12 @@ window.__jaxMainScriptDone = performance.now();
       const resRows = (e.resources && e.resources.length)
         ? e.resources.map(r => `<div class="row"><span class="label">↳ ${r.name}</span><span class="val">${r.durationMs}ms${r.transferSize === 0 ? " (cache)" : ""}</span></div>`).join("")
         : '<div class="row"><span class="label">子資源</span><span class="val">（無/尚未回報）</span></div>';
+      const liveElapsed = (!e.completed && e.startEpochMs)
+        ? `<div class="row"><span class="label">距離啟動已過（即時）</span><span class="val">${((Date.now() - e.startEpochMs)/1000).toFixed(1)} 秒</span></div>` : "";
       return `<div class="debug-entry">
         <div class="row"><span class="label">時間</span><span class="val">${e.t || "-"}</span></div>
         <div class="row"><span class="label">狀態</span><span class="val">${e.completed ? "完整跑完" : "卡在 " + (e.stage || "未知")}</span></div>
+        ${liveElapsed}
         <div class="row"><span class="label">啟動時已被 SW 控制</span><span class="val">${e.controlledAtStart}</span></div>
         <div class="row"><span class="label">load 時已被 SW 控制</span><span class="val">${e.controlledAtEnd ?? "-"}</span></div>
         <div class="row"><span class="label">TTFB（拿到回應多快）</span><span class="val">${e.ttfbMs ?? "-"} ms</span></div>
@@ -2001,6 +2014,7 @@ window.__jaxMainScriptDone = performance.now();
 
   render();
   window.addEventListener("load", render);
+  setInterval(render, 1000);
 })();
 </script>
 
