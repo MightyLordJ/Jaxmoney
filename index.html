@@ -539,7 +539,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.8.0</div>
+  <div class="board-version">v3.8.1</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1529,6 +1529,16 @@ document.querySelectorAll(".page-dot").forEach((dot,i)=>{
   function containerWidthPx(){ return container.offsetWidth || 1; }
 
   wrap.addEventListener("touchstart", (e)=>{
+    // Interactive controls (keypad keys, buttons, selects, quick-currency/range
+    // buttons, page dots) handle their own tap via "click". If we let this touch
+    // start a drag, a tiny sub-6px wobble during a fast tap can get axis-locked
+    // to "x" in touchmove, which calls preventDefault() and suppresses the
+    // button's synthesized click — the digit silently disappears. Bail out here
+    // so those elements' own tap handling is never contended with.
+    if(e.target.closest(".key, button, select, input, .quick-btn, .range-tab, .page-dot")){
+      dragging = false;
+      return;
+    }
     dragging = true;
     axisLocked = null;
     startX = e.touches[0].clientX;
