@@ -539,7 +539,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.8.1</div>
+  <div class="board-version">v3.8.2</div>
 </div>
 
 <div class="canvas-wrap">
@@ -1413,7 +1413,19 @@ let discountLongPressed = false;
 })();
 
 document.querySelectorAll(".key").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
+  // Previously bound purely on "click". Click is a *synthesized* event on iOS —
+  // under fast successive taps across different keys, WebKit can fail to
+  // synthesize it for one of the taps (the tap still visually registers via
+  // the is-pressed listeners above, but no click ever fires), which is what
+  // was causing digits to silently vanish while typing quickly. touchend
+  // fires directly off the real touch gesture with no synthesis step, so it
+  // doesn't have that failure mode. We preventDefault() on touchend so the
+  // browser doesn't also fire the ghost click afterwards (which would double
+  // -input the key); click is kept only as the non-touch (mouse/trackpad)
+  // fallback, guarded by handledByTouch so it never re-fires for the same tap.
+  let handledByTouch = false;
+
+  const handleKeyTap = ()=>{
     const k = btn.dataset.key;
 
     if(k === "discount"){
@@ -1460,6 +1472,18 @@ document.querySelectorAll(".key").forEach(btn=>{
     }
     updateConvValues();
     syncOperatorHighlight();
+  };
+
+  btn.addEventListener("touchend", (e)=>{
+    if(e.cancelable) e.preventDefault();
+    handledByTouch = true;
+    handleKeyTap();
+    setTimeout(()=>{ handledByTouch = false; }, 400);
+  }, {passive:false});
+
+  btn.addEventListener("click", ()=>{
+    if(handledByTouch) return;
+    handleKeyTap();
   });
 });
 
