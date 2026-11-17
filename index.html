@@ -539,7 +539,7 @@
     </button>
     <span class="header-offline-badge" id="headerOfflineBadge" style="display:none;">⚠️ 離線</span>
   </div>
-  <div class="board-version">v3.8.3</div>
+  <div class="board-version">v3.8.4</div>
 </div>
 
 <div class="canvas-wrap">
@@ -627,7 +627,7 @@
       <button class="picker-close" id="pickerClose">完成</button>
     </div>
     <div class="picker-search-wrap">
-      <input type="text" id="pickerSearch" class="picker-search" placeholder="搜尋幣別代碼或名稱，例如 ISK" autocomplete="off" autocapitalize="characters">
+      <input type="text" id="pickerSearch" class="picker-search" placeholder="搜尋幣別或國家，例如 ISK、冰島、Thailand" autocomplete="off" autocapitalize="characters">
     </div>
     <div class="picker-list" id="pickerList"></div>
   </div>
@@ -691,6 +691,76 @@ const FLAGS = {
   CZK:"🇨🇿", ILS:"🇮🇱", PHP:"🇵🇭", AED:"🇦🇪", SAR:"🇸🇦", MYR:"🇲🇾",
   TRY:"🇹🇷", RUB:"🇷🇺", VND:"🇻🇳", ISK:"🇮🇸"
 };
+
+// ---- Currency search: country / region names (中英文) -> currency code ----
+// Terms are separated by "|". Chinese terms match by substring; English terms match
+// at the start of any word (so "us" finds "USA" but not "Russia").
+const COUNTRY_ALIASES = {
+  TWD:"台灣|臺灣|Taiwan|新台幣|New Taiwan Dollar|NTD",
+  USD:"美國|美国|United States|America|USA|美金|US Dollar|Dollar",
+  EUR:"歐盟|歐元區|歐洲|Europe|European Union|Eurozone|Euro|德國|Germany|法國|France|義大利|意大利|Italy|西班牙|Spain|荷蘭|Netherlands|比利時|Belgium|奧地利|Austria|葡萄牙|Portugal|愛爾蘭|Ireland|芬蘭|Finland|希臘|Greece|盧森堡|Luxembourg|斯洛伐克|Slovakia|斯洛維尼亞|Slovenia|愛沙尼亞|Estonia|拉脫維亞|Latvia|立陶宛|Lithuania|馬爾他|Malta|塞浦路斯|賽普勒斯|Cyprus|克羅埃西亞|克羅地亞|Croatia|保加利亞|Bulgaria|摩納哥|Monaco|梵蒂岡|Vatican|聖馬利諾|San Marino|安道爾|Andorra|蒙特內哥羅|黑山|Montenegro|科索沃|Kosovo",
+  JPY:"日本|Japan|日幣|Yen",
+  GBP:"英國|英国|United Kingdom|UK|Britain|Great Britain|England|英格蘭|蘇格蘭|Scotland|威爾斯|Wales|北愛爾蘭|Northern Ireland|Pound|Sterling",
+  CNY:"中國|中国|中國大陸|大陸|China|人民币|RMB|Renminbi|Yuan",
+  AUD:"澳洲|澳大利亞|澳大利亚|Australia|Australian Dollar",
+  CAD:"加拿大|Canada|Canadian Dollar",
+  CHF:"瑞士|Switzerland|瑞郎|Swiss Franc|Franc|列支敦斯登|Liechtenstein",
+  HKD:"香港|Hong Kong|港元|Hong Kong Dollar|HK",
+  SGD:"新加坡|Singapore|星加坡|新幣|Singapore Dollar",
+  SEK:"瑞典|Sweden|Swedish Krona|Krona",
+  KRW:"韓國|韩国|南韓|South Korea|Korea|Won",
+  NOK:"挪威|Norway|Norwegian Krone|Krone",
+  NZD:"紐西蘭|新西蘭|新西兰|New Zealand|紐幣|NZ|New Zealand Dollar",
+  INR:"印度|India|Rupee|Indian Rupee",
+  MXN:"墨西哥|Mexico|Mexican Peso|Peso",
+  ZAR:"南非|South Africa|Rand",
+  BRL:"巴西|Brazil|Real",
+  DKK:"丹麥|Denmark|Danish Krone|Krone|格陵蘭|Greenland|法羅群島|Faroe Islands",
+  PLN:"波蘭|Poland|Zloty",
+  THB:"泰國|泰国|Thailand|泰铢|Baht",
+  IDR:"印尼|印度尼西亞|Indonesia|Rupiah|峇里島|巴厘島|Bali",
+  HUF:"匈牙利|Hungary|Forint",
+  CZK:"捷克|Czech Republic|Czechia|Koruna",
+  ILS:"以色列|Israel|謝克爾|Shekel",
+  PHP:"菲律賓|菲律宾|Philippines|Philippine Peso|Peso",
+  AED:"阿聯|阿拉伯聯合大公國|阿聯酋|United Arab Emirates|UAE|杜拜|Dubai|阿布達比|Abu Dhabi|Dirham",
+  SAR:"沙烏地阿拉伯|沙烏地|沙特|Saudi Arabia|Riyal",
+  MYR:"馬來西亞|马来西亚|Malaysia|令吉|馬幣|Ringgit",
+  TRY:"土耳其|Turkey|Türkiye|Turkiye|Lira",
+  RUB:"俄羅斯|俄国|Russia|Ruble|盧布",
+  VND:"越南|Vietnam|Viet Nam|Dong",
+  ISK:"冰島|冰岛|Iceland|Icelandic Krona|Krona"
+};
+
+function normSearch(s){
+  return String(s || "").trim().toLowerCase().replace(/臺/g, "台");
+}
+
+// Returns [[code, name, hitTerm|null], ...]. hitTerm is the country/alias that matched
+// (null when the code or the Chinese currency name matched directly).
+function searchCurrencies(filterText){
+  const q = normSearch(filterText);
+  if(q === "") return CURRENCIES.map(([c,n]) => [c, n, null]);
+  const isAscii = !/[^\x00-\x7F]/.test(q);
+  const wordPrefix = isAscii
+    ? new RegExp("(^|[\\s\\-])" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    : null;
+  const out = [];
+  CURRENCIES.forEach(([c,n]) => {
+    if(normSearch(c).includes(q) || normSearch(n).includes(q)){
+      out.push([c, n, null]);
+      return;
+    }
+    const terms = (COUNTRY_ALIASES[c] || "").split("|");
+    const hit = terms.find(t => {
+      const nt = normSearch(t);
+      return isAscii ? wordPrefix.test(nt) : nt.includes(q);
+    });
+    if(hit) out.push([c, n, hit]);
+  });
+  return out;
+}
+// ---- end currency search ----
 
 const RANGES = [
   {key:"1M", days:30}, {key:"6M", days:182}, {key:"1Y", days:365}, {key:"3Y", days:1095}
@@ -1143,19 +1213,16 @@ let pickerTargetIdx = null;
 
 function renderPickerList(filterText){
   const list = document.getElementById("pickerList");
-  const q = (filterText || "").trim().toUpperCase();
-  const filtered = q === "" ? CURRENCIES : CURRENCIES.filter(([c,n]) =>
-    c.toUpperCase().includes(q) || n.toUpperCase().includes(q)
-  );
+  const filtered = searchCurrencies(filterText);
   if(filtered.length === 0){
     list.innerHTML = `<div class="status-msg">找不到符合的幣別</div>`;
     return;
   }
-  list.innerHTML = filtered.map(([c,n])=>`
+  list.innerHTML = filtered.map(([c,n,hit])=>`
     <div class="picker-item" data-code="${c}">
       <span class="picker-flag">${FLAGS[c]||"🏳️"}</span>
       <span class="picker-code">${c}</span>
-      <span class="picker-name">${n}</span>
+      <span class="picker-name">${n}${hit ? ` · ${hit}` : ""}</span>
     </div>
   `).join("");
   list.querySelectorAll(".picker-item").forEach(item=>{
