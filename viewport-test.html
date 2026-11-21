@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>JaxMoney 版位診斷</title>
+<meta name="theme-color" content="#0A0E0C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="診斷">
+<style>
+  html,body{margin:0;background:#0A0E0C;color:#F2F2F7;font-family:-apple-system,"PingFang TC",sans-serif;}
+  /* 尺規:從螢幕最上緣(top:0)每 20px 一條線,標示 CSS px */
+  .tick{position:fixed;left:0;right:0;height:0;border-top:1px solid rgba(255,255,255,.35);z-index:5;}
+  .tick span{position:absolute;right:6px;top:1px;font-size:10px;color:#aaa;}
+  /* 紅條 = env(safe-area-inset-top) 的高度 */
+  #insetBar{position:fixed;top:0;left:0;width:14px;height:env(safe-area-inset-top,0px);background:#FF453A;z-index:6;}
+  /* 綠條 = 正式 App 標題列文字大約的位置(inset + 10px 起算,高約 20px) */
+  #titleBar{position:fixed;left:20px;top:calc(env(safe-area-inset-top,0px) + 10px);height:20px;width:110px;background:#5E5CE6;z-index:6;
+    color:#fff;font-size:13px;font-weight:700;line-height:20px;text-align:center;border-radius:4px;}
+  /* 用來讀 env() 實際數值的探針 */
+  #probe{position:fixed;visibility:hidden;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);}
+  #info{position:absolute;top:230px;left:16px;right:16px;font-size:14px;line-height:1.6;}
+  #info b{color:#5E5CE6;}
+  pre{white-space:pre-wrap;word-break:break-all;margin:0;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;}
+  .hint{color:#98989D;font-size:12px;margin-bottom:8px;}
+</style>
+</head>
+<body>
+<div id="probe"></div>
+<div id="insetBar"></div>
+<div id="titleBar">JaxMoney</div>
+<div id="ticks"></div>
+<div id="info">
+  <div class="hint">紅條 = env(safe-area-inset-top)。紫條 = 正式 App 標題大約位置。左側細線是從螢幕最上緣起算的 CSS px 尺規。請從主畫面圖示開啟後截圖。</div>
+  <pre id="out">載入中…</pre>
+</div>
+<script>
+(function(){
+  var t = document.getElementById("ticks"), h = "";
+  for(var y=0;y<=200;y+=20){ h += '<div class="tick" style="top:'+y+'px"><span>'+y+'</span></div>'; }
+  t.innerHTML = h;
+
+  var LOG_KEY = "jaxmoney-viewport-test-log";
+  var probe = document.getElementById("probe");
+
+  function insets(){
+    var cs = getComputedStyle(probe);
+    return {
+      top: cs.paddingTop, right: cs.paddingRight, bottom: cs.paddingBottom, left: cs.paddingLeft
+    };
+  }
+
+  function snapshot(tag){
+    var vv = window.visualViewport;
+    var s = window.screen, o = s.orientation;
+    var ins = insets();
+    var tb = document.getElementById("titleBar").getBoundingClientRect();
+    return {
+      tag: tag,
+      time: new Date().toISOString().slice(11,19),
+      standalone: navigator.standalone,
+      ua: (navigator.userAgent.match(/OS [\d_]+/)||[""])[0],
+      innerWH: window.innerWidth + "x" + window.innerHeight,
+      docClientWH: document.documentElement.clientWidth + "x" + document.documentElement.clientHeight,
+      visualViewport: vv ? (vv.width + "x" + vv.height + " offTop=" + vv.offsetTop + " pageTop=" + vv.pageTop + " scale=" + vv.scale) : "n/a",
+      screenWH: s.width + "x" + s.height,
+      availWH: s.availWidth + "x" + s.availHeight,
+      orientation: o ? o.type : "n/a",
+      dpr: window.devicePixelRatio,
+      insetTRBL: ins.top + " / " + ins.right + " / " + ins.bottom + " / " + ins.left,
+      titleBarTop: tb.top.toFixed(1),
+      scrollY: window.scrollY
+    };
+  }
+
+  function fmt(o){
+    return Object.keys(o).map(function(k){ return k + ": " + o[k]; }).join("\n");
+  }
+
+  function saveLog(o){
+    try{
+      var arr = JSON.parse(localStorage.getItem(LOG_KEY) || "[]");
+      arr.push(o);
+      if(arr.length > 6) arr = arr.slice(-6);
+      localStorage.setItem(LOG_KEY, JSON.stringify(arr));
+    }catch(e){}
+  }
+
+  var out = document.getElementById("out");
+  function render(tag){
+    var now = snapshot(tag);
+    var text = "【現在】\n" + fmt(now);
+    try{
+      var arr = JSON.parse(localStorage.getItem(LOG_KEY) || "[]");
+      if(arr.length){
+        var last = arr[arr.length-1];
+        text += "\n\n【本次開啟時的初始讀數】\n" + fmt(last);
+      }
+    }catch(e){}
+    out.textContent = text;
+  }
+
+  var launched = false;
+  function onceLaunch(){
+    if(launched) return;
+    launched = true;
+    saveLog(snapshot("launch"));
+    render("now");
+  }
+
+  window.addEventListener("load", function(){ onceLaunch(); setTimeout(function(){ render("t+1.5s"); }, 1500); });
+  window.addEventListener("resize", function(){ render("resize"); });
+  window.addEventListener("orientationchange", function(){ setTimeout(function(){ render("rotate"); }, 300); });
+  document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible") render("visible"); });
+  setInterval(function(){ render("tick"); }, 1000);
+  render("init");
+})();
+</script>
+</body>
+</html>
